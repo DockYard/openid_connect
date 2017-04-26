@@ -41,7 +41,7 @@ defmodule OpenidConnect.Mixfile do
   #
   # Type "mix help deps" for more examples and options
   defp deps do
-    [{:httpoison, "~> 0.11"},
+    [{:httpoison, "~> 0.9.0"},
      {:poison, "~> 2.0"},
      {:jose, "~> 1.8"}]
   end
