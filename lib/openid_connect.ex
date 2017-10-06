@@ -1,3 +1,5 @@
+require Logger
+
 defmodule OpenidConnect do
   def discovery_document(provider) do
     GenServer.call(:openid_connect, {:discovery_document, provider})
@@ -43,7 +45,8 @@ defmodule OpenidConnect do
          {:ok, json} <- assert_json(json) do
       {:ok, json}
     else
-      _ ->
+      error ->
+        Logger.error(inspect(error))
         {:error, :fetch_failed}
     end
   end
