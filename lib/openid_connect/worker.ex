@@ -39,8 +39,21 @@ defmodule OpenidConnect.Worker do
 
   def handle_info(:update_documents, _state) do
     state = OpenidConnect.update_documents()
+    refresh_time = time_until_next_refresh(state) 
 
-    Process.send_after(:update_documents, state, @refresh_time)
+    Process.send_after(:update_documents, state, refresh_time)
     {:noreply, state}
+  end
+
+  defp time_until_next_refresh(provider_documents) do
+    provider_documents
+    |> Enum.map(fn {_, %{remaining_lifetime: remaining_lifetime}} -> remaining_lifetime end)
+    |> Enum.reject(&is_nil(&1))
+    |> Enum.sort()
+    |> Enum.at(0)
+    |> case do
+      nil -> @refresh_time
+      time_in_seconds - > :timer.seconds(time_in_seconds - 360) # 6 minutes before expiry
+    end
   end
 end
