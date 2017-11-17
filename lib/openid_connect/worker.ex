@@ -53,7 +53,7 @@ defmodule OpenidConnect.Worker do
     |> Enum.at(0)
     |> case do
       nil -> @refresh_time
-      time_in_seconds - > :timer.seconds(time_in_seconds - 360) # 6 minutes before expiry
+      time_in_seconds -> :timer.seconds(time_in_seconds - 360) # 6 minutes before expiry
     end
   end
 end
