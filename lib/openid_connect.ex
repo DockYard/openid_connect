@@ -99,10 +99,10 @@ defmodule OpenidConnect do
     |> Application.get_env(:provider)
     |> Keyword.keys()
     |> Enum.reduce([], fn(provider, provider_documents) ->
-      {:ok, discovery_document} = fetch_resource(discovery_document_uri(provider))
-      {:ok, certs} = fetch_resource(discovery_document["jwks_uri"])
+      {:ok, discovery_document, _} = fetch_resource(discovery_document_uri(provider))
+      {:ok, certs, remaining_lifetime} = fetch_resource(discovery_document["jwks_uri"])
 
-      documents = %{discovery_document: discovery_document, certs: certs}
+      documents = %{discovery_document: discovery_document, certs: certs, remaining_lifetime: remaining_lifetime}
 
       Keyword.put(provider_documents, provider, documents)
     end)
@@ -112,7 +112,7 @@ defmodule OpenidConnect do
     with {:ok, resp} <- HTTPoison.get(uri),
          {:ok, json} <- Poison.decode(resp.body),
          {:ok, json} <- assert_json(json) do
-      {:ok, json}
+      {:ok, json, remaining_lifetime(resp.headers)}
     else
       _ -> {:error, :fetch_failed}
     end
@@ -126,6 +126,32 @@ defmodule OpenidConnect do
     |> URI.to_string()
   end
 
+
   defp assert_json(%{"error" => reason}), do: {:error, reason}
   defp assert_json(json), do: {:ok, json}
+
+  @spec remaining_lifetime([{String.t, String.t}]) :: integer | nil
+  defp remaining_lifetime(headers) do
+    with headers = Enum.into(headers, %{}),
+         {:ok, max_age} <- find_max_age(headers),
+         {:ok, age} <- find_age(headers) do
+      max_age - age
+    else
+      _ -> nil
+    end
+  end
+
+  defp find_max_age(headers) when is_map(headers) do
+    case Regex.run(~r"(?<=max-age=)\d+", Map.get(headers, "Cache-Control", "")) do
+      [max_age] -> {:ok, String.to_integer(max_age)}
+      _ -> :error
+    end
+  end
+
+  def find_age(headers) when is_map(headers) do
+    case Map.get(headers, "Age") do
+      nil -> :error
+      age -> {:ok, String.to_integer(age)}
+    end
+  end
 end
