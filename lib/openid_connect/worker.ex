@@ -39,9 +39,10 @@ defmodule OpenidConnect.Worker do
 
   def handle_info(:update_documents, _state) do
     state = OpenidConnect.update_documents()
-    refresh_time = time_until_next_refresh(state) 
+    refresh_time = time_until_next_refresh(state)
 
-    Process.send_after(:update_documents, state, refresh_time)
+    Process.send_after(self(), :update_documents, refresh_time)
+
     {:noreply, state}
   end
 
