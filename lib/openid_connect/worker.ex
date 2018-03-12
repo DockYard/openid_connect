@@ -1,7 +1,7 @@
-require OpenidConnect
-
 defmodule OpenidConnect.Worker do
   use GenServer
+
+  require Logger
 
   @refresh_time 60 * 60 * 1000
 
@@ -38,6 +38,8 @@ defmodule OpenidConnect.Worker do
   end
 
   def handle_info(:update_documents, _state) do
+    Logger.info(fn -> "Updating OpenID Connect provider documents" end)
+
     state = OpenidConnect.update_documents()
     refresh_time = time_until_next_refresh(state)
 
@@ -54,7 +56,8 @@ defmodule OpenidConnect.Worker do
     |> Enum.at(0)
     |> case do
       nil -> @refresh_time
-      time_in_seconds -> :timer.seconds(time_in_seconds - 360) # 6 minutes before expiry
+      time_in_seconds when time_in_seconds > 0 -> :timer.seconds(time_in_seconds)
+      time_in_seconds when time_in_seconds <= 0 -> 0
     end
   end
 end

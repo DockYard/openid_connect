@@ -1,6 +1,6 @@
-require Logger
-
 defmodule OpenidConnect do
+  require Logger
+
   def discovery_document(provider) do
     GenServer.call(:openid_connect, {:discovery_document, provider})
   end
