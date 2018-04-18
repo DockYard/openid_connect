@@ -1,21 +1,26 @@
 defmodule OpenidConnect do
   require Logger
 
-  def discovery_document(provider) do
-    GenServer.call(:openid_connect, {:discovery_document, provider})
+  def discovery_document(provider, name \\ :openid_connect) do
+    GenServer.call(name, {:discovery_document, provider})
   end
 
-  def certs(provider) do
-    GenServer.call(:openid_connect, {:certs, provider})
+  def certs(provider, name \\ :openid_connect) do
+    GenServer.call(name, {:certs, provider})
   end
 
-  def authorization_uri(provider) do
-    doc = discovery_document(provider)
+  defp config(provider, name) do
+    GenServer.call(name, {:config, provider})
+  end
+
+  def authorization_uri(provider, name \\ :openid_connect) do
+    doc = discovery_document(provider, name)
+    config = config(provider, name)
 
     uri = Map.get(doc, "authorization_endpoint")
     params = %{
-      client_id: client_id(provider),
-      redirect_uri: redirect_uri(provider),
+      client_id: client_id(config),
+      redirect_uri: redirect_uri(config),
       response_type: "code",
       scope: "openid email profile"
     }
@@ -23,24 +28,25 @@ defmodule OpenidConnect do
     build_uri(uri, params)
   end
 
-  def access_token_uri(provider) do
-    Map.get(discovery_document(provider), "token_endpoint")
+  def access_token_uri(provider, name) do
+    Map.get(discovery_document(provider, name), "token_endpoint")
   end
 
-  def fetch_tokens(provider, params) do
-    uri = access_token_uri(provider)
+  def fetch_tokens(provider, params, name \\ :openid_connect) do
+    uri = access_token_uri(provider, name)
+    config = config(provider, name)
 
     form_body = [
-      client_id: client_id(provider),
-      client_secret: client_secret(provider),
+      client_id: client_id(config),
+      client_secret: client_secret(config),
       code: params["code"],
       grant_type: "authorization_code",
-      redirect_uri: redirect_uri(provider)
+      redirect_uri: redirect_uri(config)
     ]
 
     headers = [{"Content-Type", "application/x-www-form-urlencoded"}]
 
-    with {:ok, resp} <- HTTPoison.post(uri, {:form, form_body}, headers),
+    with {:ok, resp} <- http_client().post(uri, {:form, form_body}, headers),
          {:ok, json} <- Poison.decode(resp.body),
          {:ok, json} <- assert_json(json) do
       {:ok, json}
@@ -51,8 +57,8 @@ defmodule OpenidConnect do
     end
   end
 
-  def verify(provider, jwt) do
-    jwk_set = JOSE.JWK.from(certs(provider))
+  def verify(provider, jwt, name \\ :openid_connect) do
+    jwk_set = JOSE.JWK.from(certs(provider, name))
 
     alg =
       with [header, _, _] <- String.split(jwt, "."),
@@ -72,44 +78,35 @@ defmodule OpenidConnect do
     end)
   end
 
-  def client_id(provider) do
-    Keyword.get(config(provider), :client_id)
+  def client_id(config) do
+    Keyword.get(config, :client_id)
   end
 
-  def client_secret(provider) do
-    Keyword.get(config(provider), :client_secret)
+  def client_secret(config) do
+    Keyword.get(config, :client_secret)
   end
 
-  def redirect_uri(provider) do
-    Keyword.get(config(provider), :redirect_uri)
+  def redirect_uri(config) do
+    Keyword.get(config, :redirect_uri)
   end
 
-  def discovery_document_uri(provider) do
-    Keyword.get(config(provider), :discovery_document_uri)
+  def discovery_document_uri(config) do
+    Keyword.get(config, :discovery_document_uri)
   end
 
-  defp config(provider) do
-    :openid_connect
-    |> Application.get_env(:provider)
-    |> Keyword.get(provider)
-  end
+  def update_documents(config) do
+    {:ok, discovery_document, _} =
+      config
+      |> discovery_document_uri()
+      |> fetch_resource()
 
-  def update_documents() do
-    :openid_connect
-    |> Application.get_env(:provider)
-    |> Keyword.keys()
-    |> Enum.reduce([], fn(provider, provider_documents) ->
-      {:ok, discovery_document, _} = fetch_resource(discovery_document_uri(provider))
-      {:ok, certs, remaining_lifetime} = fetch_resource(discovery_document["jwks_uri"])
+    {:ok, certs, remaining_lifetime} = fetch_resource(discovery_document["jwks_uri"])
 
-      documents = %{discovery_document: discovery_document, certs: certs, remaining_lifetime: remaining_lifetime}
-
-      Keyword.put(provider_documents, provider, documents)
-    end)
+    %{discovery_document: discovery_document, certs: certs, remaining_lifetime: remaining_lifetime}
   end
 
   defp fetch_resource(uri) do
-    with {:ok, resp} <- HTTPoison.get(uri),
+    with {:ok, resp} <- http_client().get(uri),
          {:ok, json} <- Poison.decode(resp.body),
          {:ok, json} <- assert_json(json) do
       {:ok, json, remaining_lifetime(resp.headers)}
@@ -125,7 +122,6 @@ defmodule OpenidConnect do
     |> URI.merge("?#{query}")
     |> URI.to_string()
   end
-
 
   defp assert_json(%{"error" => reason}), do: {:error, reason}
   defp assert_json(json), do: {:ok, json}
@@ -148,10 +144,14 @@ defmodule OpenidConnect do
     end
   end
 
-  def find_age(headers) when is_map(headers) do
+  defp find_age(headers) when is_map(headers) do
     case Map.get(headers, "Age") do
       nil -> :error
       age -> {:ok, String.to_integer(age)}
     end
+  end
+
+  defp http_client() do
+    Application.get_env(:openid_connect, :http_client, HTTPoison)
   end
 end
