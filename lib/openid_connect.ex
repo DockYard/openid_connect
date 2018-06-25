@@ -1,17 +1,4 @@
 defmodule OpenidConnect do
-  require Logger
-
-  def discovery_document(provider, name \\ :openid_connect) do
-    GenServer.call(name, {:discovery_document, provider})
-  end
-
-  def certs(provider, name \\ :openid_connect) do
-    GenServer.call(name, {:certs, provider})
-  end
-
-  defp config(provider, name) do
-    GenServer.call(name, {:config, provider})
-  end
 
   def authorization_uri(provider, name \\ :openid_connect) do
     doc = discovery_document(provider, name)
@@ -22,14 +9,10 @@ defmodule OpenidConnect do
       client_id: client_id(config),
       redirect_uri: redirect_uri(config),
       response_type: "code",
-      scope: "openid email profile"
+      scope: normalize_scope(provider, config[:scope])
     }
 
     build_uri(uri, params)
-  end
-
-  def access_token_uri(provider, name) do
-    Map.get(discovery_document(provider, name), "token_endpoint")
   end
 
   def fetch_tokens(provider, params, name \\ :openid_connect) do
@@ -47,23 +30,24 @@ defmodule OpenidConnect do
     headers = [{"Content-Type", "application/x-www-form-urlencoded"}]
 
     with {:ok, resp} <- http_client().post(uri, {:form, form_body}, headers),
-         {:ok, json} <- Poison.decode(resp.body),
+         {:ok, json} <- Jason.decode(resp.body),
          {:ok, json} <- assert_json(json) do
       {:ok, json}
     else
-      error ->
-        Logger.error(inspect(error))
-        {:error, :fetch_failed}
+      error -> error
     end
   end
 
   def verify(provider, jwt, name \\ :openid_connect) do
-    jwk_set = JOSE.JWK.from(certs(provider, name))
+    jwk_set =
+      provider
+      |> certs(name)
+      |> JOSE.JWK.from()
 
     alg =
       with [header, _, _] <- String.split(jwt, "."),
            {:ok, header} <- Base.decode64(header, padding: false),
-           {:ok, header} <- Poison.decode(header), do: Map.get(header, "alg")
+           {:ok, header} <- Jason.decode(header), do: Map.get(header, "alg")
 
     results = for jwk <- elem(jwk_set.keys, 1) do
       {
@@ -73,25 +57,9 @@ defmodule OpenidConnect do
     end
 
     Enum.find_value(results, {:error, :verification_failed}, fn
-      {_, {true, claims, _}} -> Poison.decode(claims)
+      {_, {true, claims, _}} -> Jason.decode(claims)
       _ -> false
     end)
-  end
-
-  def client_id(config) do
-    Keyword.get(config, :client_id)
-  end
-
-  def client_secret(config) do
-    Keyword.get(config, :client_secret)
-  end
-
-  def redirect_uri(config) do
-    Keyword.get(config, :redirect_uri)
-  end
-
-  def discovery_document_uri(config) do
-    Keyword.get(config, :discovery_document_uri)
   end
 
   def update_documents(config) do
@@ -105,13 +73,45 @@ defmodule OpenidConnect do
     %{discovery_document: discovery_document, certs: certs, remaining_lifetime: remaining_lifetime}
   end
 
+  defp discovery_document(provider, name) do
+    GenServer.call(name, {:discovery_document, provider})
+  end
+
+  defp certs(provider, name) do
+    GenServer.call(name, {:certs, provider})
+  end
+
+  defp config(provider, name) do
+    GenServer.call(name, {:config, provider})
+  end
+
+  defp access_token_uri(provider, name) do
+    Map.get(discovery_document(provider, name), "token_endpoint")
+  end
+
+  defp client_id(config) do
+    Keyword.get(config, :client_id)
+  end
+
+  defp client_secret(config) do
+    Keyword.get(config, :client_secret)
+  end
+
+  defp redirect_uri(config) do
+    Keyword.get(config, :redirect_uri)
+  end
+
+  defp discovery_document_uri(config) do
+    Keyword.get(config, :discovery_document_uri)
+  end
+
   defp fetch_resource(uri) do
     with {:ok, resp} <- http_client().get(uri),
-         {:ok, json} <- Poison.decode(resp.body),
+         {:ok, json} <- Jason.decode(resp.body),
          {:ok, json} <- assert_json(json) do
       {:ok, json, remaining_lifetime(resp.headers)}
     else
-      _ -> {:error, :fetch_failed}
+      error -> error
     end
   end
 
@@ -137,6 +137,12 @@ defmodule OpenidConnect do
     end
   end
 
+  defp normalize_scope(provider, scopes) when is_nil(scopes) or scopes == [] do
+    raise ArgumentError, "no scopes have been defined for provider `#{provider}`"
+  end
+  defp normalize_scope(_provider, scopes) when is_binary(scopes), do: scopes
+  defp normalize_scope(_provider, scopes) when is_list(scopes), do: Enum.join(scopes, " ")
+
   defp find_max_age(headers) when is_map(headers) do
     case Regex.run(~r"(?<=max-age=)\d+", Map.get(headers, "Cache-Control", "")) do
       [max_age] -> {:ok, String.to_integer(max_age)}
@@ -151,7 +157,7 @@ defmodule OpenidConnect do
     end
   end
 
-  defp http_client() do
-    Application.get_env(:openid_connect, :http_client, HTTPoison)
+  defp http_client do
+    Application.get_env(:openid_connect, :http_client, OpenidConnect.HTTPClient)
   end
 end

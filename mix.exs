@@ -7,16 +7,20 @@ defmodule OpenidConnect.Mixfile do
      elixir: "~> 1.3",
      build_embedded: Mix.env == :prod,
      start_permanent: Mix.env == :prod,
+     elixirc_paths: elixirc_paths(Mix.env),
      description: description(),
      package: package(),
      deps: deps()]
   end
 
+  # Specifies which paths to compile per environment
+  defp elixirc_paths(:test),  do: elixirc_paths(nil) ++ ["test/support"]
+  defp elixirc_paths(_),      do: ["lib"]
   # Configuration for the OTP application
   #
   # Type "mix help compile.app" for more information
   def application do
-    [applications: [:logger, :httpoison, :poison, :jose]]
+    [extra_applications: [:logger]]
   end
 
   def description() do
@@ -42,7 +46,8 @@ defmodule OpenidConnect.Mixfile do
   # Type "mix help deps" for more examples and options
   defp deps do
     [{:httpoison, "~> 0.9.0"},
-     {:poison, "~> 2.0"},
-     {:jose, "~> 1.8"}]
+     {:jason, "~> 1.0.0"},
+     {:jose, "~> 1.8"},
+     {:mox, "~> 0.3.2", only: :test}]
   end
 end

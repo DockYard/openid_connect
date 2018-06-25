@@ -1,8 +1,6 @@
 defmodule OpenidConnect.Worker do
   use GenServer
 
-  require Logger
-
   @refresh_time 60 * 60 * 1000
 
   def start_link(provider_configs, name \\ :openid_connect) do
@@ -15,8 +13,8 @@ defmodule OpenidConnect.Worker do
 
   def init(provider_configs) do
     state = Enum.into(provider_configs, %{}, fn({provider, config}) ->
-      Process.send_after(self(), {:update_documents, provider}, 1_000)
-      {provider, %{config: config, documents: %{}}}
+      documents = update_documents(provider, config)
+      {provider, %{config: config, documents: documents}}
     end)
 
     {:ok, state}
@@ -38,18 +36,22 @@ defmodule OpenidConnect.Worker do
   end
 
   def handle_info({:update_documents, provider}, state) do
-    Logger.info(fn -> "Updating OpenID Connect documents for #{provider}" end)
-
     config = get_in(state, [provider, :config])
+    documents = update_documents(provider, config)
 
-    %{remaining_lifetime: remaining_lifetime} = documents = OpenidConnect.update_documents(config)
     state = put_in(state, [provider, :documents], documents)
+
+    {:noreply, state}
+  end
+
+  defp update_documents(provider, config) do
+    %{remaining_lifetime: remaining_lifetime} = documents = OpenidConnect.update_documents(config)
 
     refresh_time = time_until_next_refresh(remaining_lifetime)
 
-    Process.send_after(self(), :update_documents, refresh_time)
+    Process.send_after(self(), {:update_documents, provider}, refresh_time)
 
-    {:noreply, state}
+    documents
   end
 
   defp time_until_next_refresh(nil), do: @refresh_time
