@@ -165,6 +165,6 @@ defmodule OpenidConnect do
   end
 
   defp http_client do
-    Application.get_env(:openid_connect, :http_client, OpenidConnect.HTTPClient)
+    Application.get_env(:openid_connect, :http_client, HTTPoison)
   end
 end

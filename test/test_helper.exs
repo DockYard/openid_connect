@@ -1,3 +1,3 @@
-Mox.defmock(OpenidConnect.HTTPClientMock, for: OpenidConnect.HTTPClientBehaviour)
+Mox.defmock(OpenidConnect.HTTPClientMock, for: HTTPoison.Base)
 
 ExUnit.start()
