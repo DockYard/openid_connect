@@ -89,7 +89,9 @@ defmodule OpenidConnect.WorkerTest do
 
   defp mock_http_requests() do
     HTTPClientMock
-    |> expect(:get, fn("https://accounts.google.com/.well-known/openid-configuration") -> @google_document end)
-    |> expect(:get, fn("https://www.googleapis.com/oauth2/v3/certs") -> @google_certs end)
+    |> expect(:get, fn "https://accounts.google.com/.well-known/openid-configuration" ->
+      @google_document
+    end)
+    |> expect(:get, fn "https://www.googleapis.com/oauth2/v3/certs" -> @google_certs end)
   end
 end

@@ -8,6 +8,8 @@ defmodule Fixtures do
     {:ok, response}
   end
 
-  defp serialize(%HTTPoison.Response{body: body} = response), do: %{response | body: Jason.encode!(body)}
+  defp serialize(%HTTPoison.Response{body: body} = response),
+    do: %{response | body: Jason.encode!(body)}
+
   defp serialize(response), do: response
 end

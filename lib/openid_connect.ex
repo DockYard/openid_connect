@@ -1,10 +1,10 @@
 defmodule OpenidConnect do
-
   def authorization_uri(provider, name \\ :openid_connect) do
     doc = discovery_document(provider, name)
     config = config(provider, name)
 
     uri = Map.get(doc, "authorization_endpoint")
+
     params = %{
       client_id: client_id(config),
       redirect_uri: redirect_uri(config),
@@ -47,14 +47,16 @@ defmodule OpenidConnect do
     alg =
       with [header, _, _] <- String.split(jwt, "."),
            {:ok, header} <- Base.decode64(header, padding: false),
-           {:ok, header} <- Jason.decode(header), do: Map.get(header, "alg")
+           {:ok, header} <- Jason.decode(header),
+           do: Map.get(header, "alg")
 
-    results = for jwk <- elem(jwk_set.keys, 1) do
-      {
-        JOSE.JWK.from(jwk).fields["kid"],
-        JOSE.JWS.verify_strict(jwk, [alg], jwt)
-      }
-    end
+    results =
+      for jwk <- elem(jwk_set.keys, 1) do
+        {
+          JOSE.JWK.from(jwk).fields["kid"],
+          JOSE.JWS.verify_strict(jwk, [alg], jwt)
+        }
+      end
 
     Enum.find_value(results, {:error, :verification_failed}, fn
       {_, {true, claims, _}} -> Jason.decode(claims)
@@ -70,7 +72,11 @@ defmodule OpenidConnect do
 
     {:ok, certs, remaining_lifetime} = fetch_resource(discovery_document["jwks_uri"])
 
-    %{discovery_document: discovery_document, certs: certs, remaining_lifetime: remaining_lifetime}
+    %{
+      discovery_document: discovery_document,
+      certs: certs,
+      remaining_lifetime: remaining_lifetime
+    }
   end
 
   defp discovery_document(provider, name) do
@@ -126,7 +132,7 @@ defmodule OpenidConnect do
   defp assert_json(%{"error" => reason}), do: {:error, reason}
   defp assert_json(json), do: {:ok, json}
 
-  @spec remaining_lifetime([{String.t, String.t}]) :: integer | nil
+  @spec remaining_lifetime([{String.t(), String.t()}]) :: integer | nil
   defp remaining_lifetime(headers) do
     with headers = Enum.into(headers, %{}),
          {:ok, max_age} <- find_max_age(headers),
@@ -140,6 +146,7 @@ defmodule OpenidConnect do
   defp normalize_scope(provider, scopes) when is_nil(scopes) or scopes == [] do
     raise ArgumentError, "no scopes have been defined for provider `#{provider}`"
   end
+
   defp normalize_scope(_provider, scopes) when is_binary(scopes), do: scopes
   defp normalize_scope(_provider, scopes) when is_list(scopes), do: Enum.join(scopes, " ")
 

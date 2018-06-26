@@ -1,12 +1,34 @@
 %HTTPoison.Response{
   body: %{
     "authorization_endpoint" => "https://accounts.google.com/o/oauth2/v2/auth",
-    "claims_supported" => ["aud", "email", "email_verified", "exp", "family_name", "given_name", "iat", "iss", "locale", "name", "picture", "sub"],
+    "claims_supported" => [
+      "aud",
+      "email",
+      "email_verified",
+      "exp",
+      "family_name",
+      "given_name",
+      "iat",
+      "iss",
+      "locale",
+      "name",
+      "picture",
+      "sub"
+    ],
     "code_challenge_methods_supported" => ["plain", "S256"],
     "id_token_signing_alg_values_supported" => ["RS256"],
     "issuer" => "https://accounts.google.com",
     "jwks_uri" => "https://www.googleapis.com/oauth2/v3/certs",
-    "response_types_supported" => ["code", "token", "id_token", "code token", "code id_token", "token id_token", "code token id_token", "none"],
+    "response_types_supported" => [
+      "code",
+      "token",
+      "id_token",
+      "code token",
+      "code id_token",
+      "token id_token",
+      "code token id_token",
+      "none"
+    ],
     "revocation_endpoint" => "https://accounts.google.com/o/oauth2/revoke",
     "scopes_supported" => ["openid", "email", "profile"],
     "subject_types_supported" => ["public"],

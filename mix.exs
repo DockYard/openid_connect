@@ -2,20 +2,22 @@ defmodule OpenidConnect.Mixfile do
   use Mix.Project
 
   def project do
-    [app: :openid_connect,
-     version: "0.1.0",
-     elixir: "~> 1.3",
-     build_embedded: Mix.env == :prod,
-     start_permanent: Mix.env == :prod,
-     elixirc_paths: elixirc_paths(Mix.env),
-     description: description(),
-     package: package(),
-     deps: deps()]
+    [
+      app: :openid_connect,
+      version: "0.1.0",
+      elixir: "~> 1.3",
+      build_embedded: Mix.env() == :prod,
+      start_permanent: Mix.env() == :prod,
+      elixirc_paths: elixirc_paths(Mix.env()),
+      description: description(),
+      package: package(),
+      deps: deps()
+    ]
   end
 
   # Specifies which paths to compile per environment
-  defp elixirc_paths(:test),  do: elixirc_paths(nil) ++ ["test/support"]
-  defp elixirc_paths(_),      do: ["lib"]
+  defp elixirc_paths(:test), do: elixirc_paths(nil) ++ ["test/support"]
+  defp elixirc_paths(_), do: ["lib"]
   # Configuration for the OTP application
   #
   # Type "mix help compile.app" for more information
@@ -30,9 +32,11 @@ defmodule OpenidConnect.Mixfile do
   end
 
   def package() do
-  [maintainers: ["Brian Cardarella"],
-   licenses: ["MIT"],
-   links: %{"GitHub" => "https://github.com/dockyard/openid_connect"}]
+    [
+      maintainers: ["Brian Cardarella"],
+      licenses: ["MIT"],
+      links: %{"GitHub" => "https://github.com/dockyard/openid_connect"}
+    ]
   end
 
   # Dependencies can be Hex packages:
@@ -45,9 +49,11 @@ defmodule OpenidConnect.Mixfile do
   #
   # Type "mix help deps" for more examples and options
   defp deps do
-    [{:httpoison, "~> 0.9.0"},
-     {:jason, "~> 1.0.0"},
-     {:jose, "~> 1.8"},
-     {:mox, "~> 0.3.2", only: :test}]
+    [
+      {:httpoison, "~> 0.9.0"},
+      {:jason, "~> 1.0.0"},
+      {:jose, "~> 1.8"},
+      {:mox, "~> 0.3.2", only: :test}
+    ]
   end
 end

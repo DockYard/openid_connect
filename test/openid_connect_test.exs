@@ -12,11 +12,15 @@ defmodule OpenidConnectTest do
 
   describe "update_documents" do
     test "when the new documents are retrieved successfully" do
-      config = [discovery_document_uri: "https://accounts.google.com/.well-known/openid-configuration"]
+      config = [
+        discovery_document_uri: "https://accounts.google.com/.well-known/openid-configuration"
+      ]
 
       HTTPClientMock
-      |> expect(:get, fn("https://accounts.google.com/.well-known/openid-configuration") -> @google_document end)
-      |> expect(:get, fn("https://www.googleapis.com/oauth2/v3/certs") -> @google_certs end)
+      |> expect(:get, fn "https://accounts.google.com/.well-known/openid-configuration" ->
+        @google_document
+      end)
+      |> expect(:get, fn "https://www.googleapis.com/oauth2/v3/certs" -> @google_certs end)
 
       expected_document =
         @google_document
@@ -41,5 +45,4 @@ defmodule OpenidConnectTest do
       assert remaining_lifetime == 16750
     end
   end
-
 end

@@ -12,10 +12,11 @@ defmodule OpenidConnect.Worker do
   end
 
   def init(provider_configs) do
-    state = Enum.into(provider_configs, %{}, fn({provider, config}) ->
-      documents = update_documents(provider, config)
-      {provider, %{config: config, documents: documents}}
-    end)
+    state =
+      Enum.into(provider_configs, %{}, fn {provider, config} ->
+        documents = update_documents(provider, config)
+        {provider, %{config: config, documents: documents}}
+      end)
 
     {:ok, state}
   end
@@ -55,6 +56,9 @@ defmodule OpenidConnect.Worker do
   end
 
   defp time_until_next_refresh(nil), do: @refresh_time
-  defp time_until_next_refresh(time_in_seconds) when time_in_seconds > 0, do: :timer.seconds(time_in_seconds)
+
+  defp time_until_next_refresh(time_in_seconds) when time_in_seconds > 0,
+    do: :timer.seconds(time_in_seconds)
+
   defp time_until_next_refresh(time_in_seconds) when time_in_seconds <= 0, do: 0
 end
