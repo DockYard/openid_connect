@@ -46,7 +46,8 @@ defmodule OpenidConnect.Worker do
   end
 
   defp update_documents(provider, config) do
-    %{remaining_lifetime: remaining_lifetime} = documents = OpenidConnect.update_documents(config)
+    {:ok, %{remaining_lifetime: remaining_lifetime}} =
+      {:ok, documents} = OpenidConnect.update_documents(config)
 
     refresh_time = time_until_next_refresh(remaining_lifetime)
 

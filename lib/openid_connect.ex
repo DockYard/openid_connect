@@ -1,9 +1,9 @@
 defmodule OpenidConnect do
   def authorization_uri(provider, name \\ :openid_connect) do
-    doc = discovery_document(provider, name)
+    document = discovery_document(provider, name)
     config = config(provider, name)
 
-    uri = Map.get(doc, "authorization_endpoint")
+    uri = Map.get(document, "authorization_endpoint")
 
     params = %{
       client_id: client_id(config),
@@ -65,18 +65,19 @@ defmodule OpenidConnect do
   end
 
   def update_documents(config) do
-    {:ok, discovery_document, _} =
-      config
-      |> discovery_document_uri()
-      |> fetch_resource()
+    uri = discovery_document_uri(config)
 
-    {:ok, certs, remaining_lifetime} = fetch_resource(discovery_document["jwks_uri"])
-
-    %{
-      discovery_document: discovery_document,
-      certs: certs,
-      remaining_lifetime: remaining_lifetime
-    }
+    with {:ok, discovery_document, _} <- fetch_resource(uri),
+         {:ok, certs, remaining_lifetime} <- fetch_resource(discovery_document["jwks_uri"]) do
+      {:ok,
+       %{
+         discovery_document: discovery_document,
+         certs: certs,
+         remaining_lifetime: remaining_lifetime
+       }}
+    else
+      {:error, reason} -> {:error, :update_documents, reason}
+    end
   end
 
   defp discovery_document(provider, name) do
@@ -112,11 +113,13 @@ defmodule OpenidConnect do
   end
 
   defp fetch_resource(uri) do
-    with {:ok, resp} <- http_client().get(uri),
+    with {:ok, %HTTPoison.Response{status_code: status_code} = resp} when status_code in 200..299 <-
+           http_client().get(uri),
          {:ok, json} <- Jason.decode(resp.body),
          {:ok, json} <- assert_json(json) do
       {:ok, json, remaining_lifetime(resp.headers)}
     else
+      {:ok, resp} -> {:error, resp}
       error -> error
     end
   end
