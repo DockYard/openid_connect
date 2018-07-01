@@ -29,40 +29,65 @@ defmodule OpenidConnect do
 
     headers = [{"Content-Type", "application/x-www-form-urlencoded"}]
 
-    with {:ok, resp} <- http_client().post(uri, {:form, form_body}, headers),
+    with {:ok, %HTTPoison.Response{status_code: status_code} = resp} when status_code in 200..299 <-
+           http_client().post(uri, {:form, form_body}, headers),
          {:ok, json} <- Jason.decode(resp.body),
          {:ok, json} <- assert_json(json) do
       {:ok, json}
     else
-      error -> error
+      {:ok, resp} -> {:error, :fetch_tokens, resp}
+      {:error, reason} -> {:error, :fetch_tokens, reason}
     end
   end
 
   def verify(provider, jwt, name \\ :openid_connect) do
-    jwk_set =
+    jwk =
       provider
       |> certs(name)
       |> JOSE.JWK.from()
 
-    alg =
-      with [header, _, _] <- String.split(jwt, "."),
-           {:ok, header} <- Base.decode64(header, padding: false),
-           {:ok, header} <- Jason.decode(header),
-           do: Map.get(header, "alg")
+    with {:ok, protected} <- peek_protected(jwt),
+         {:ok, decoded_protected} <- Jason.decode(protected),
+         {:ok, token_alg} <- Map.fetch(decoded_protected, "alg"),
+         {true, claims, _jwk} <- do_verify(jwk, token_alg, jwt) do
+      Jason.decode(claims)
+    else
+      {:error, %Jason.DecodeError{}} ->
+        {:error, :verify, "token claims did not contain a JSON payload"}
 
-    results =
-      for jwk <- elem(jwk_set.keys, 1) do
-        {
-          JOSE.JWK.from(jwk).fields["kid"],
-          JOSE.JWS.verify_strict(jwk, [alg], jwt)
-        }
+      {:error, :peek_protected} ->
+        {:error, :verify, "invalid token format"}
+
+      :error ->
+        {:error, :verify, "no `alg` found in token"}
+
+      {false, _claims, _jwk} ->
+        {:error, :verify, "verification failed"}
+    end
+  end
+
+  defp peek_protected(jwt) do
+    try do
+      {:ok, JOSE.JWS.peek_protected(jwt)}
+    rescue
+      _ -> {:error, :peek_protected}
+    end
+  end
+
+  defp do_verify(%JOSE.JWK{keys: {:jose_jwk_set, jwks}}, token_alg, jwt) do
+    Enum.find_value(jwks, {false, "{}", jwt}, fn jwk ->
+      jwk
+      |> JOSE.JWK.from()
+      |> do_verify(token_alg, jwt)
+      |> case do
+        {false, _claims, _jwt} -> false
+        verified_claims -> verified_claims
       end
-
-    Enum.find_value(results, {:error, :verification_failed}, fn
-      {_, {true, claims, _}} -> Jason.decode(claims)
-      _ -> false
     end)
   end
+
+  defp do_verify(%JOSE.JWK{} = jwk, token_alg, jwt),
+    do: JOSE.JWS.verify_strict(jwk, [token_alg], jwt)
 
   def update_documents(config) do
     uri = discovery_document_uri(config)

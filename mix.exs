@@ -53,6 +53,7 @@ defmodule OpenidConnect.Mixfile do
       {:httpoison, "~> 1.2.0"},
       {:jason, "~> 1.0.0"},
       {:jose, "~> 1.8"},
+      {:poison, "~> 3.1.0"},
       {:mox, "~> 0.3.2", only: :test}
     ]
   end

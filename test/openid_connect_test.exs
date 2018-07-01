@@ -90,7 +90,7 @@ defmodule OpenidConnectTest do
         @google_document
       end)
       |> expect(:get, fn "https://www.googleapis.com/oauth2/v3/certs" ->
-        {:ok, %HTTPoison.Error{id: nil, reason: :nxdomain}}
+        {:ok, %HTTPoison.Error{reason: :nxdomain}}
       end)
 
       assert OpenidConnect.update_documents(config) ==
@@ -145,17 +145,231 @@ defmodule OpenidConnectTest do
 
   describe "fetching tokens" do
     test "when token fetch is successful" do
+      {:ok, pid} = GenServer.start_link(MockWorker, [], name: :openid_connect)
+
+      config = GenServer.call(:openid_connect, {:config, :google})
+
+      form_body = [
+        client_id: config[:client_id],
+        client_secret: config[:client_secret],
+        code: "1234",
+        grant_type: "authorization_code",
+        redirect_uri: config[:redirect_uri]
+      ]
+
+      try do
+        expect(HTTPClientMock, :post, fn "https://www.googleapis.com/oauth2/v4/token",
+                                         {:form, ^form_body},
+                                         _headers ->
+          {:ok, %HTTPoison.Response{status_code: 200, body: Jason.encode!(%{})}}
+        end)
+
+        {:ok, body} = OpenidConnect.fetch_tokens(:google, %{"code" => "1234"})
+
+        assert body == %{}
+      after
+        GenServer.stop(pid)
+      end
     end
 
-    test "when token fetch fails" do
+    test "when token fetch is successful with a different GenServer name" do
+      {:ok, pid} = GenServer.start_link(MockWorker, [], name: :other_openid_connect)
+
+      config = GenServer.call(:other_openid_connect, {:config, :google})
+
+      form_body = [
+        client_id: config[:client_id],
+        client_secret: config[:client_secret],
+        code: "1234",
+        grant_type: "authorization_code",
+        redirect_uri: config[:redirect_uri]
+      ]
+
+      try do
+        expect(HTTPClientMock, :post, fn "https://www.googleapis.com/oauth2/v4/token",
+                                         {:form, ^form_body},
+                                         _headers ->
+          {:ok, %HTTPoison.Response{status_code: 200, body: Jason.encode!(%{})}}
+        end)
+
+        {:ok, body} =
+          OpenidConnect.fetch_tokens(:google, %{"code" => "1234"}, :other_openid_connect)
+
+        assert body == %{}
+      after
+        GenServer.stop(pid)
+      end
+    end
+
+    test "when token fetch fails with bad domain" do
+      {:ok, pid} = GenServer.start_link(MockWorker, [], name: :openid_connect)
+
+      http_error = %HTTPoison.Error{reason: :nxdomain}
+
+      try do
+        expect(HTTPClientMock, :post, fn "https://www.googleapis.com/oauth2/v4/token",
+                                         {:form, _form_body},
+                                         _headers ->
+          {:ok, http_error}
+        end)
+
+        resp = OpenidConnect.fetch_tokens(:google, %{"code" => "1234"})
+
+        assert resp == {:error, :fetch_tokens, http_error}
+      after
+        GenServer.stop(pid)
+      end
+    end
+
+    test "when token fetch doesn't return a 200 response" do
+      {:ok, pid} = GenServer.start_link(MockWorker, [], name: :openid_connect)
+
+      http_error = %HTTPoison.Response{status_code: 404}
+
+      try do
+        expect(HTTPClientMock, :post, fn "https://www.googleapis.com/oauth2/v4/token",
+                                         {:form, _form_body},
+                                         _headers ->
+          {:ok, http_error}
+        end)
+
+        resp = OpenidConnect.fetch_tokens(:google, %{"code" => "1234"})
+
+        assert resp == {:error, :fetch_tokens, http_error}
+      after
+        GenServer.stop(pid)
+      end
     end
   end
 
   describe "jwt verification" do
     test "is successful" do
+      {:ok, pid} = GenServer.start_link(MockWorker, [], name: :openid_connect)
+
+      try do
+        {certs, []} = Code.eval_file("test/fixtures/rsa/jwk1.exs")
+        :ok = GenServer.call(pid, {:put, :certs, certs})
+
+        claims = %{"email" => "brian@example.com"}
+
+        {_alg, token} =
+          certs
+          |> JOSE.JWK.from()
+          |> JOSE.JWS.sign(Jason.encode!(claims), %{"alg" => "RS256"})
+          |> JOSE.JWS.compact()
+
+        result = OpenidConnect.verify(:google, token)
+        assert result == {:ok, claims}
+      after
+        GenServer.stop(pid)
+      end
     end
 
-    test "fails" do
+    test "is successful with multiple jwks" do
+      {:ok, pid} = GenServer.start_link(MockWorker, [], name: :openid_connect)
+
+      try do
+        {certs, []} = Code.eval_file("test/fixtures/rsa/jwks.exs")
+        :ok = GenServer.call(pid, {:put, :certs, certs})
+
+        claims = %{"email" => "brian@example.com"}
+
+        {_alg, token} =
+          certs
+          |> Map.get("keys")
+          |> List.last()
+          |> JOSE.JWK.from()
+          |> JOSE.JWS.sign(Jason.encode!(claims), %{"alg" => "RS256"})
+          |> JOSE.JWS.compact()
+
+        result = OpenidConnect.verify(:google, token)
+        assert result == {:ok, claims}
+      after
+        GenServer.stop(pid)
+      end
+    end
+
+    test "fails with invalid token format" do
+      {:ok, pid} = GenServer.start_link(MockWorker, [], name: :openid_connect)
+
+      try do
+        {certs, []} = Code.eval_file("test/fixtures/rsa/jwk1.exs")
+        :ok = GenServer.call(pid, {:put, :certs, certs})
+
+        result = OpenidConnect.verify(:google, "fail")
+        assert result == {:error, :verify, "invalid token format"}
+      after
+        GenServer.stop(pid)
+      end
+    end
+
+    test "fails with invalid token claims format" do
+      {:ok, pid} = GenServer.start_link(MockWorker, [], name: :openid_connect)
+
+      try do
+        {certs, []} = Code.eval_file("test/fixtures/rsa/jwk1.exs")
+        :ok = GenServer.call(pid, {:put, :certs, certs})
+
+        token =
+          [
+            "fail",
+            "fail",
+            "fail"
+          ]
+          |> Enum.map(fn header -> Base.encode64(header) end)
+          |> Enum.join(".")
+
+        result = OpenidConnect.verify(:google, token)
+        assert result == {:error, :verify, "token claims did not contain a JSON payload"}
+      after
+        GenServer.stop(pid)
+      end
+    end
+
+    test "fails with token not including algorithm hint" do
+      {:ok, pid} = GenServer.start_link(MockWorker, [], name: :openid_connect)
+
+      try do
+        {certs, []} = Code.eval_file("test/fixtures/rsa/jwk1.exs")
+        :ok = GenServer.call(pid, {:put, :certs, certs})
+
+        token =
+          [
+            "{}",
+            "{}",
+            "{}"
+          ]
+          |> Enum.map(fn header -> Base.encode64(header) end)
+          |> Enum.join(".")
+
+        result = OpenidConnect.verify(:google, token)
+        assert result == {:error, :verify, "no `alg` found in token"}
+      after
+        GenServer.stop(pid)
+      end
+    end
+
+    test "fails when verification fails" do
+      {:ok, pid} = GenServer.start_link(MockWorker, [], name: :openid_connect)
+
+      try do
+        {certs1, []} = Code.eval_file("test/fixtures/rsa/jwk1.exs")
+        {certs2, []} = Code.eval_file("test/fixtures/rsa/jwk2.exs")
+        :ok = GenServer.call(pid, {:put, :certs, certs1})
+
+        claims = %{"email" => "brian@example.com"}
+
+        {_alg, token} =
+          certs2
+          |> JOSE.JWK.from()
+          |> JOSE.JWS.sign(Jason.encode!(claims), %{"alg" => "RS256"})
+          |> JOSE.JWS.compact()
+
+        result = OpenidConnect.verify(:google, token)
+        assert result == {:error, :verify, "verification failed"}
+      after
+        GenServer.stop(pid)
+      end
     end
   end
 end

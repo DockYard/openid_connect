@@ -12,23 +12,32 @@ defmodule OpenidConnect.MockWorker do
                 |> Jason.decode!()
 
   def init(_) do
-    {:ok, %{}}
-  end
-
-  def handle_call({:discovery_document, :google}, _from, _state) do
-    {:reply, @google_document, %{}}
-  end
-
-  def handle_call({:certs, :google}, _from, _state) do
-    {:reply, @google_certs, %{}}
-  end
-
-  def handle_call({:config, :google}, _from, _state) do
     config =
       Application.get_env(:openid_connect, :providers)
       |> Keyword.get(:google)
 
-    {:reply, config, %{}}
+    {:ok,
+     %{
+       config: config,
+       certs: @google_certs,
+       document: @google_document
+     }}
+  end
+
+  def handle_call({:discovery_document, :google}, _from, state) do
+    {:reply, Map.get(state, :document), state}
+  end
+
+  def handle_call({:certs, :google}, _from, state) do
+    {:reply, Map.get(state, :certs), state}
+  end
+
+  def handle_call({:config, :google}, _from, state) do
+    {:reply, Map.get(state, :config), state}
+  end
+
+  def handle_call({:put, key, value}, _from, state) do
+    {:reply, :ok, Map.put(state, key, value)}
   end
 
   def handle_call(_anything, _from, _state) do
