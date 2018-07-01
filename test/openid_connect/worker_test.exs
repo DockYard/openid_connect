@@ -1,4 +1,4 @@
-defmodule OpenidConnect.WorkerTest do
+defmodule OpenIDConnect.WorkerTest do
   use ExUnit.Case
   import Mox
 
@@ -8,10 +8,10 @@ defmodule OpenidConnect.WorkerTest do
   @google_document Fixtures.load(:google, :discovery_document)
   @google_certs Fixtures.load(:google, :certs)
 
-  alias OpenidConnect.{HTTPClientMock}
+  alias OpenIDConnect.{HTTPClientMock}
 
   test "starting with :ignore does nothing" do
-    :ignore = OpenidConnect.Worker.start_link(:ignore)
+    :ignore = OpenIDConnect.Worker.start_link(:ignore)
   end
 
   test "starting with a single provider will retrieve the necessary documents" do
@@ -19,7 +19,7 @@ defmodule OpenidConnect.WorkerTest do
 
     config = Application.get_env(:openid_connect, :providers)
 
-    {:ok, pid} = start_supervised({OpenidConnect.Worker, config})
+    {:ok, pid} = start_supervised({OpenIDConnect.Worker, config})
 
     state = :sys.get_state(pid)
 
@@ -45,7 +45,7 @@ defmodule OpenidConnect.WorkerTest do
 
     config = Application.get_env(:openid_connect, :providers)
 
-    {:ok, pid} = start_supervised({OpenidConnect.Worker, config})
+    {:ok, pid} = start_supervised({OpenIDConnect.Worker, config})
 
     google_config = GenServer.call(pid, {:config, :google})
 
@@ -57,7 +57,7 @@ defmodule OpenidConnect.WorkerTest do
 
     config = Application.get_env(:openid_connect, :providers)
 
-    {:ok, pid} = start_supervised({OpenidConnect.Worker, config})
+    {:ok, pid} = start_supervised({OpenIDConnect.Worker, config})
 
     discovery_document = GenServer.call(pid, {:discovery_document, :google})
 
@@ -75,7 +75,7 @@ defmodule OpenidConnect.WorkerTest do
 
     config = Application.get_env(:openid_connect, :providers)
 
-    {:ok, pid} = start_supervised({OpenidConnect.Worker, config})
+    {:ok, pid} = start_supervised({OpenIDConnect.Worker, config})
 
     jwk = GenServer.call(pid, {:jwk, :google})
 

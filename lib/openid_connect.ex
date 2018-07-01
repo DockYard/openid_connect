@@ -1,4 +1,74 @@
-defmodule OpenidConnect do
+defmodule OpenIDConnect do
+  @moduledoc """
+  Handles a majority of the life-cycle concerns with [OpenID Connect](http://openid.net/connect/)
+  """
+
+  @typedoc """
+  URI as a string
+  """
+  @type uri :: String.t()
+  @typedoc """
+  JSON Web Token
+
+  See: https://jwt.io/introduction/
+  """
+  @type jwt :: String.t()
+  @typedoc """
+  The code returned by an OpenID Connect provider during the redirect
+  """
+  @type code :: String.t()
+  @typedoc """
+  The provider name as an atom
+
+  Example: `:google`
+
+  This atom should match what you've used in your application config
+  """
+  @type provider :: atom
+  @typedoc """
+  The payload of user data from the provider
+  """
+  @type claims :: map
+  @typedoc """
+  The name of the genserver
+
+  This is optional and will default to `:openid_connect` unless overridden
+  """
+  @type name :: atom
+  @typedoc """
+  The success tuple
+
+  The 2nd element will be the relevant value to work with
+  """
+  @type success(value) :: {:ok, value}
+  @typedoc """
+  A string reason for an error failure
+  """
+  @type reason :: String.t() | %HTTPoison.Error{} | %HTTPoison.Response{}
+  @typedoc """
+  An error tuple
+
+  The 2nd element will indicate which function failed
+  The 3rd element will give details of the failure
+  """
+  @type error(name) :: {:error, name, reason}
+  @typedoc """
+  A provider's documents
+
+  * discovery_document: the provider's discovery document for OpenID Connect
+  * jwk: the provider's certificates converted into a JOSE JSON Web Key
+  * remaining_lifetime: how long the provider's JWK is valid for
+  """
+  @type documents :: %{
+          discovery_document: map,
+          jwk: JOSE.JWK.t(),
+          remaining_lifetime: integer | nil
+        }
+
+  @spec authorization_uri(provider, name) :: uri
+  @doc """
+  Builds the authorization URI according to the spec in the providers discovery document
+  """
   def authorization_uri(provider, name \\ :openid_connect) do
     document = discovery_document(provider, name)
     config = config(provider, name)
@@ -15,14 +85,21 @@ defmodule OpenidConnect do
     build_uri(uri, params)
   end
 
-  def fetch_tokens(provider, params, name \\ :openid_connect) do
+  @spec fetch_tokens(provider, code, name) :: success(map) | error(:fetch_tokens)
+  @doc """
+  Fetches the authentication tokens from the provider
+
+  The `code` paramater should be taken from the query param `code` in the redirect
+  back to your application from the provider
+  """
+  def fetch_tokens(provider, code, name \\ :openid_connect) do
     uri = access_token_uri(provider, name)
     config = config(provider, name)
 
     form_body = [
       client_id: client_id(config),
       client_secret: client_secret(config),
-      code: params["code"],
+      code: code,
       grant_type: "authorization_code",
       redirect_uri: redirect_uri(config)
     ]
@@ -40,6 +117,13 @@ defmodule OpenidConnect do
     end
   end
 
+  @spec verify(provider, jwt, name) :: success(claims) | error(:verify)
+  @doc """
+  Verifies the validity of the JSON Web Token (JWT)
+
+  This verification will assert the token's encryption against the provider's
+  JSON Web Key (JWK)
+  """
   def verify(provider, jwt, name \\ :openid_connect) do
     jwk = jwk(provider, name)
 
@@ -60,6 +144,30 @@ defmodule OpenidConnect do
 
       {false, _claims, _jwk} ->
         {:error, :verify, "verification failed"}
+    end
+  end
+
+  @spec update_documents(list) :: success(documents) | error(:update_documents)
+  @doc """
+  Requests updated documents from the provider
+
+  This function is used by `OpenIDConnect.Worker` for document updates
+  according to the lifetime returned by the provider
+  """
+  def update_documents(config) do
+    uri = discovery_document_uri(config)
+
+    with {:ok, discovery_document, _} <- fetch_resource(uri),
+         {:ok, certs, remaining_lifetime} <- fetch_resource(discovery_document["jwks_uri"]),
+         {:ok, jwk} <- from_certs(certs) do
+      {:ok,
+       %{
+         discovery_document: discovery_document,
+         jwk: jwk,
+         remaining_lifetime: remaining_lifetime
+       }}
+    else
+      {:error, reason} -> {:error, :update_documents, reason}
     end
   end
 
@@ -85,23 +193,6 @@ defmodule OpenidConnect do
 
   defp do_verify(%JOSE.JWK{} = jwk, token_alg, jwt),
     do: JOSE.JWS.verify_strict(jwk, [token_alg], jwt)
-
-  def update_documents(config) do
-    uri = discovery_document_uri(config)
-
-    with {:ok, discovery_document, _} <- fetch_resource(uri),
-         {:ok, certs, remaining_lifetime} <- fetch_resource(discovery_document["jwks_uri"]),
-         {:ok, jwk} <- from_certs(certs) do
-      {:ok,
-       %{
-         discovery_document: discovery_document,
-         jwk: jwk,
-         remaining_lifetime: remaining_lifetime
-       }}
-    else
-      {:error, reason} -> {:error, :update_documents, reason}
-    end
-  end
 
   defp from_certs(certs) do
     try do

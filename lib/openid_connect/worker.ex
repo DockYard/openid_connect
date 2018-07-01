@@ -1,5 +1,11 @@
-defmodule OpenidConnect.Worker do
+defmodule OpenIDConnect.Worker do
   use GenServer
+
+  @moduledoc """
+  Worker module for OpenID Connect
+
+  This worker will store and periodically update each provider's documents and JWKs according to the lifetimes
+  """
 
   @refresh_time 60 * 60 * 1000
 
@@ -47,7 +53,7 @@ defmodule OpenidConnect.Worker do
 
   defp update_documents(provider, config) do
     {:ok, %{remaining_lifetime: remaining_lifetime}} =
-      {:ok, documents} = OpenidConnect.update_documents(config)
+      {:ok, documents} = OpenIDConnect.update_documents(config)
 
     refresh_time = time_until_next_refresh(remaining_lifetime)
 

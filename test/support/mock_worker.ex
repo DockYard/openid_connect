@@ -1,4 +1,4 @@
-defmodule OpenidConnect.MockWorker do
+defmodule OpenIDConnect.MockWorker do
   use GenServer
 
   @google_document Fixtures.load(:google, :discovery_document)

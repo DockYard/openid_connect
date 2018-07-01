@@ -1,17 +1,23 @@
-defmodule OpenidConnect.Mixfile do
+defmodule OpenIDConnect.Mixfile do
   use Mix.Project
+
+  @version "0.1.0"
 
   def project do
     [
       app: :openid_connect,
-      version: "0.1.0",
+      version: @version,
       elixir: "~> 1.3",
       build_embedded: Mix.env() == :prod,
       start_permanent: Mix.env() == :prod,
       elixirc_paths: elixirc_paths(Mix.env()),
       description: description(),
       package: package(),
-      deps: deps()
+      name: "OpenID Connect",
+      deps: deps(),
+      docs: docs(),
+      name: "OpenID Connect",
+      source_url: "https://github.com/DockYard/openid_connect"
     ]
   end
 
@@ -31,11 +37,21 @@ defmodule OpenidConnect.Mixfile do
     """
   end
 
+  def docs() do
+    [
+      main: "README",
+      source_ref: "v#{@version}",
+      logo: "openid-logo.png",
+      extras: ["README.md"]
+    ]
+  end
+
   def package() do
     [
       maintainers: ["Brian Cardarella"],
       licenses: ["MIT"],
-      links: %{"GitHub" => "https://github.com/dockyard/openid_connect"}
+      links: %{"GitHub" => "https://github.com/DockYard/openid_connect"},
+      files: ~w(lib mix.exs README.md LICENSE.md CHANGELOG.md)
     ]
   end
 
@@ -54,6 +70,8 @@ defmodule OpenidConnect.Mixfile do
       {:jason, "~> 1.0.0"},
       {:jose, "~> 1.8"},
       {:poison, "~> 3.1.0"},
+      {:earmark, "~> 1.2.5", only: :dev},
+      {:ex_doc, "~> 0.18.3", only: :dev},
       {:mox, "~> 0.3.2", only: :test}
     ]
   end

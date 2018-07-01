@@ -1,6 +1,6 @@
 use Mix.Config
 
-config :openid_connect, :http_client, OpenidConnect.HTTPClientMock
+config :openid_connect, :http_client, OpenIDConnect.HTTPClientMock
 
 config :openid_connect, :providers,
   google: [
