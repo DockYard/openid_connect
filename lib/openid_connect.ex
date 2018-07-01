@@ -41,10 +41,7 @@ defmodule OpenidConnect do
   end
 
   def verify(provider, jwt, name \\ :openid_connect) do
-    jwk =
-      provider
-      |> certs(name)
-      |> JOSE.JWK.from()
+    jwk = jwk(provider, name)
 
     with {:ok, protected} <- peek_protected(jwt),
          {:ok, decoded_protected} <- Jason.decode(protected),
@@ -93,11 +90,12 @@ defmodule OpenidConnect do
     uri = discovery_document_uri(config)
 
     with {:ok, discovery_document, _} <- fetch_resource(uri),
-         {:ok, certs, remaining_lifetime} <- fetch_resource(discovery_document["jwks_uri"]) do
+         {:ok, certs, remaining_lifetime} <- fetch_resource(discovery_document["jwks_uri"]),
+         {:ok, jwk} <- from_certs(certs) do
       {:ok,
        %{
          discovery_document: discovery_document,
-         certs: certs,
+         jwk: jwk,
          remaining_lifetime: remaining_lifetime
        }}
     else
@@ -105,12 +103,21 @@ defmodule OpenidConnect do
     end
   end
 
+  defp from_certs(certs) do
+    try do
+      {:ok, JOSE.JWK.from(certs)}
+    rescue
+      _ ->
+        {:error, "certificates bad format"}
+    end
+  end
+
   defp discovery_document(provider, name) do
     GenServer.call(name, {:discovery_document, provider})
   end
 
-  defp certs(provider, name) do
-    GenServer.call(name, {:certs, provider})
+  defp jwk(provider, name) do
+    GenServer.call(name, {:jwk, provider})
   end
 
   defp config(provider, name) do

@@ -28,21 +28,22 @@ defmodule OpenidConnectTest do
         |> Map.get(:body)
         |> Jason.decode!()
 
-      expected_certs =
+      expected_jwk =
         @google_certs
         |> elem(1)
         |> Map.get(:body)
         |> Jason.decode!()
+        |> JOSE.JWK.from()
 
       {:ok,
        %{
          discovery_document: discovery_document,
-         certs: certs,
+         jwk: jwk,
          remaining_lifetime: remaining_lifetime
        }} = OpenidConnect.update_documents(config)
 
       assert expected_document == discovery_document
-      assert expected_certs == certs
+      assert expected_jwk == jwk
       assert remaining_lifetime == 16750
     end
 
@@ -247,13 +248,13 @@ defmodule OpenidConnectTest do
       {:ok, pid} = GenServer.start_link(MockWorker, [], name: :openid_connect)
 
       try do
-        {certs, []} = Code.eval_file("test/fixtures/rsa/jwk1.exs")
-        :ok = GenServer.call(pid, {:put, :certs, certs})
+        {jwk, []} = Code.eval_file("test/fixtures/rsa/jwk1.exs")
+        :ok = GenServer.call(pid, {:put, :jwk, JOSE.JWK.from(jwk)})
 
         claims = %{"email" => "brian@example.com"}
 
         {_alg, token} =
-          certs
+          jwk
           |> JOSE.JWK.from()
           |> JOSE.JWS.sign(Jason.encode!(claims), %{"alg" => "RS256"})
           |> JOSE.JWS.compact()
@@ -269,13 +270,13 @@ defmodule OpenidConnectTest do
       {:ok, pid} = GenServer.start_link(MockWorker, [], name: :openid_connect)
 
       try do
-        {certs, []} = Code.eval_file("test/fixtures/rsa/jwks.exs")
-        :ok = GenServer.call(pid, {:put, :certs, certs})
+        {jwk, []} = Code.eval_file("test/fixtures/rsa/jwks.exs")
+        :ok = GenServer.call(pid, {:put, :jwk, JOSE.JWK.from(jwk)})
 
         claims = %{"email" => "brian@example.com"}
 
         {_alg, token} =
-          certs
+          jwk
           |> Map.get("keys")
           |> List.last()
           |> JOSE.JWK.from()
@@ -293,8 +294,8 @@ defmodule OpenidConnectTest do
       {:ok, pid} = GenServer.start_link(MockWorker, [], name: :openid_connect)
 
       try do
-        {certs, []} = Code.eval_file("test/fixtures/rsa/jwk1.exs")
-        :ok = GenServer.call(pid, {:put, :certs, certs})
+        {jwk, []} = Code.eval_file("test/fixtures/rsa/jwk1.exs")
+        :ok = GenServer.call(pid, {:put, :jwk, JOSE.JWK.from(jwk)})
 
         result = OpenidConnect.verify(:google, "fail")
         assert result == {:error, :verify, "invalid token format"}
@@ -307,8 +308,8 @@ defmodule OpenidConnectTest do
       {:ok, pid} = GenServer.start_link(MockWorker, [], name: :openid_connect)
 
       try do
-        {certs, []} = Code.eval_file("test/fixtures/rsa/jwk1.exs")
-        :ok = GenServer.call(pid, {:put, :certs, certs})
+        {jwk, []} = Code.eval_file("test/fixtures/rsa/jwk1.exs")
+        :ok = GenServer.call(pid, {:put, :jwk, JOSE.JWK.from(jwk)})
 
         token =
           [
@@ -330,8 +331,8 @@ defmodule OpenidConnectTest do
       {:ok, pid} = GenServer.start_link(MockWorker, [], name: :openid_connect)
 
       try do
-        {certs, []} = Code.eval_file("test/fixtures/rsa/jwk1.exs")
-        :ok = GenServer.call(pid, {:put, :certs, certs})
+        {jwk, []} = Code.eval_file("test/fixtures/rsa/jwk1.exs")
+        :ok = GenServer.call(pid, {:put, :jwk, JOSE.JWK.from(jwk)})
 
         token =
           [
@@ -353,14 +354,14 @@ defmodule OpenidConnectTest do
       {:ok, pid} = GenServer.start_link(MockWorker, [], name: :openid_connect)
 
       try do
-        {certs1, []} = Code.eval_file("test/fixtures/rsa/jwk1.exs")
-        {certs2, []} = Code.eval_file("test/fixtures/rsa/jwk2.exs")
-        :ok = GenServer.call(pid, {:put, :certs, certs1})
+        {jwk1, []} = Code.eval_file("test/fixtures/rsa/jwk1.exs")
+        {jwk2, []} = Code.eval_file("test/fixtures/rsa/jwk2.exs")
+        :ok = GenServer.call(pid, {:put, :jwk, JOSE.JWK.from(jwk1)})
 
         claims = %{"email" => "brian@example.com"}
 
         {_alg, token} =
-          certs2
+          jwk2
           |> JOSE.JWK.from()
           |> JOSE.JWS.sign(Jason.encode!(claims), %{"alg" => "RS256"})
           |> JOSE.JWS.compact()

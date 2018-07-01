@@ -6,10 +6,11 @@ defmodule OpenidConnect.MockWorker do
                    |> Map.get(:body)
                    |> Jason.decode!()
 
-  @google_certs Fixtures.load(:google, :certs)
-                |> elem(1)
-                |> Map.get(:body)
-                |> Jason.decode!()
+  @google_jwk Fixtures.load(:google, :certs)
+              |> elem(1)
+              |> Map.get(:body)
+              |> Jason.decode!()
+              |> JOSE.JWK.from()
 
   def init(_) do
     config =
@@ -19,7 +20,7 @@ defmodule OpenidConnect.MockWorker do
     {:ok,
      %{
        config: config,
-       certs: @google_certs,
+       jwk: @google_jwk,
        document: @google_document
      }}
   end
@@ -28,8 +29,8 @@ defmodule OpenidConnect.MockWorker do
     {:reply, Map.get(state, :document), state}
   end
 
-  def handle_call({:certs, :google}, _from, state) do
-    {:reply, Map.get(state, :certs), state}
+  def handle_call({:jwk, :google}, _from, state) do
+    {:reply, Map.get(state, :jwk), state}
   end
 
   def handle_call({:config, :google}, _from, state) do

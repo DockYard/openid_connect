@@ -29,14 +29,15 @@ defmodule OpenidConnect.WorkerTest do
       |> Map.get(:body)
       |> Jason.decode!()
 
-    expected_certs =
+    expected_jwk =
       @google_certs
       |> elem(1)
       |> Map.get(:body)
       |> Jason.decode!()
+      |> JOSE.JWK.from()
 
     assert expected_document == get_in(state, [:google, :documents, :discovery_document])
-    assert expected_certs == get_in(state, [:google, :documents, :certs])
+    assert expected_jwk == get_in(state, [:google, :documents, :jwk])
   end
 
   test "worker can respond to a call for the config" do
@@ -69,22 +70,23 @@ defmodule OpenidConnect.WorkerTest do
     assert expected_document == discovery_document
   end
 
-  test "worker can respond to a call for a provider's certs" do
+  test "worker can respond to a call for a provider's jwk" do
     mock_http_requests()
 
     config = Application.get_env(:openid_connect, :providers)
 
     {:ok, pid} = start_supervised({OpenidConnect.Worker, config})
 
-    certs = GenServer.call(pid, {:certs, :google})
+    jwk = GenServer.call(pid, {:jwk, :google})
 
-    expected_certs =
+    expected_jwk =
       @google_certs
       |> elem(1)
       |> Map.get(:body)
       |> Jason.decode!()
+      |> JOSE.JWK.from()
 
-    assert expected_certs == certs
+    assert expected_jwk == jwk
   end
 
   defp mock_http_requests() do

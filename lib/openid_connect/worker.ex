@@ -26,9 +26,9 @@ defmodule OpenidConnect.Worker do
     {:reply, discovery_document, state}
   end
 
-  def handle_call({:certs, provider}, _from, state) do
-    certs = get_in(state, [provider, :documents, :certs])
-    {:reply, certs, state}
+  def handle_call({:jwk, provider}, _from, state) do
+    jwk = get_in(state, [provider, :documents, :jwk])
+    {:reply, jwk, state}
   end
 
   def handle_call({:config, provider}, _from, state) do
