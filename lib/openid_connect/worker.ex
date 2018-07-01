@@ -1,63 +1,71 @@
-defmodule OpenidConnect.Worker do
+defmodule OpenIDConnect.Worker do
   use GenServer
 
-  require Logger
+  @moduledoc """
+  Worker module for OpenID Connect
+
+  This worker will store and periodically update each provider's documents and JWKs according to the lifetimes
+  """
 
   @refresh_time 60 * 60 * 1000
 
-  def start_link(env) do
-    GenServer.start_link(__MODULE__, env, name: :openid_connect)
+  def start_link(provider_configs, name \\ :openid_connect) do
+    GenServer.start_link(__MODULE__, provider_configs, name: name)
   end
 
   def init(:ignore) do
     :ignore
   end
 
-  def init(_opts) do
-    Process.send_after(:openid_connect, :update_documents, 1_000)
+  def init(provider_configs) do
+    state =
+      Enum.into(provider_configs, %{}, fn {provider, config} ->
+        documents = update_documents(provider, config)
+        {provider, %{config: config, documents: documents}}
+      end)
 
-    {:ok, []}
+    {:ok, state}
   end
 
-  def handle_call({:discovery_document, provider}, _from, provider_documents) do
-    discovery_document =
-      provider_documents
-      |> Keyword.get(provider)
-      |> Map.get(:discovery_document)
-
-    {:reply, discovery_document, provider_documents}
+  def handle_call({:discovery_document, provider}, _from, state) do
+    discovery_document = get_in(state, [provider, :documents, :discovery_document])
+    {:reply, discovery_document, state}
   end
 
-  def handle_call({:certs, provider}, _from, provider_documents) do
-    certs =
-      provider_documents
-      |> Keyword.get(provider)
-      |> Map.get(:certs)
-
-    {:reply, certs, provider_documents}
+  def handle_call({:jwk, provider}, _from, state) do
+    jwk = get_in(state, [provider, :documents, :jwk])
+    {:reply, jwk, state}
   end
 
-  def handle_info(:update_documents, _state) do
-    Logger.info(fn -> "Updating OpenID Connect provider documents" end)
+  def handle_call({:config, provider}, _from, state) do
+    config = get_in(state, [provider, :config])
+    {:reply, config, state}
+  end
 
-    state = OpenidConnect.update_documents()
-    refresh_time = time_until_next_refresh(state)
+  def handle_info({:update_documents, provider}, state) do
+    config = get_in(state, [provider, :config])
+    documents = update_documents(provider, config)
 
-    Process.send_after(self(), :update_documents, refresh_time)
+    state = put_in(state, [provider, :documents], documents)
 
     {:noreply, state}
   end
 
-  defp time_until_next_refresh(provider_documents) do
-    provider_documents
-    |> Enum.map(fn {_, %{remaining_lifetime: remaining_lifetime}} -> remaining_lifetime end)
-    |> Enum.reject(&is_nil(&1))
-    |> Enum.sort()
-    |> Enum.at(0)
-    |> case do
-      nil -> @refresh_time
-      time_in_seconds when time_in_seconds > 0 -> :timer.seconds(time_in_seconds)
-      time_in_seconds when time_in_seconds <= 0 -> 0
-    end
+  defp update_documents(provider, config) do
+    {:ok, %{remaining_lifetime: remaining_lifetime}} =
+      {:ok, documents} = OpenIDConnect.update_documents(config)
+
+    refresh_time = time_until_next_refresh(remaining_lifetime)
+
+    Process.send_after(self(), {:update_documents, provider}, refresh_time)
+
+    documents
   end
+
+  defp time_until_next_refresh(nil), do: @refresh_time
+
+  defp time_until_next_refresh(time_in_seconds) when time_in_seconds > 0,
+    do: :timer.seconds(time_in_seconds)
+
+  defp time_until_next_refresh(time_in_seconds) when time_in_seconds <= 0, do: 0
 end
