@@ -39,7 +39,7 @@ defmodule OpenIDConnect.Mixfile do
 
   def docs() do
     [
-      main: "README",
+      main: "readme",
       source_ref: "v#{@version}",
       logo: "openid-logo.png",
       extras: ["README.md"]
