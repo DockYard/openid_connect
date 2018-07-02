@@ -1,7 +1,7 @@
 defmodule OpenIDConnect.Mixfile do
   use Mix.Project
 
-  @version "0.1.0"
+  @version "0.1.1"
 
   def project do
     [
@@ -69,7 +69,6 @@ defmodule OpenIDConnect.Mixfile do
       {:httpoison, "~> 1.2.0"},
       {:jason, "~> 1.0.0"},
       {:jose, "~> 1.8"},
-      {:poison, "~> 3.1.0"},
       {:earmark, "~> 1.2.5", only: :dev},
       {:ex_doc, "~> 0.18.3", only: :dev},
       {:mox, "~> 0.3.2", only: :test}

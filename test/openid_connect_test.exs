@@ -4,6 +4,7 @@ defmodule OpenIDConnectTest do
 
   setup :set_mox_global
   setup :verify_on_exit!
+  setup :set_jose_json_lib
 
   @google_document Fixtures.load(:google, :discovery_document)
   @google_certs Fixtures.load(:google, :certs)
@@ -371,5 +372,10 @@ defmodule OpenIDConnectTest do
         GenServer.stop(pid)
       end
     end
+  end
+
+  defp set_jose_json_lib(_) do
+    JOSE.json_module(JasonEncoder)
+    []
   end
 end

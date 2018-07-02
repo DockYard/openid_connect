@@ -12,7 +12,7 @@ Add `openid_connect` to your list of dependencies in `mix.exs`:
 
 ```elixir
 def deps do
-  [{:openid_connect, "~> 0.1.0"}]
+  [{:openid_connect, "~> 0.1.1"}]
 end
 ```
 
