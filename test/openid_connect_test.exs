@@ -131,6 +131,19 @@ defmodule OpenIDConnectTest do
       end
     end
 
+    test "with optional params" do
+      {:ok, pid} = GenServer.start_link(MockWorker, [], name: :openid_connect)
+
+      try do
+        expected =
+          "https://accounts.google.com/o/oauth2/v2/auth?client_id=CLIENT_ID_1&redirect_uri=https%3A%2F%2Fdev.example.com%3A4200%2Fsession&response_type=code&scope=openid+email+profile&hd=dockyard.com"
+
+        assert OpenIDConnect.authorization_uri(:google, %{"hd" => "dockyard.com"}) == expected
+      after
+        GenServer.stop(pid)
+      end
+    end
+
     test "with custom worker name" do
       {:ok, pid} = GenServer.start_link(MockWorker, [], name: :other_openid_worker)
 
@@ -138,7 +151,7 @@ defmodule OpenIDConnectTest do
         expected =
           "https://accounts.google.com/o/oauth2/v2/auth?client_id=CLIENT_ID_1&redirect_uri=https%3A%2F%2Fdev.example.com%3A4200%2Fsession&response_type=code&scope=openid+email+profile"
 
-        assert OpenIDConnect.authorization_uri(:google, :other_openid_worker) == expected
+        assert OpenIDConnect.authorization_uri(:google, %{}, :other_openid_worker) == expected
       after
         GenServer.stop(pid)
       end

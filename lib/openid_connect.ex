@@ -7,16 +7,19 @@ defmodule OpenIDConnect do
   URI as a string
   """
   @type uri :: String.t()
+
   @typedoc """
   JSON Web Token
 
   See: https://jwt.io/introduction/
   """
   @type jwt :: String.t()
+
   @typedoc """
   The code returned by an OpenID Connect provider during the redirect
   """
   @type code :: String.t()
+
   @typedoc """
   The provider name as an atom
 
@@ -25,16 +28,24 @@ defmodule OpenIDConnect do
   This atom should match what you've used in your application config
   """
   @type provider :: atom
+
   @typedoc """
   The payload of user data from the provider
   """
   @type claims :: map
+
   @typedoc """
   The name of the genserver
 
   This is optional and will default to `:openid_connect` unless overridden
   """
   @type name :: atom
+
+  @typedoc """
+  Query param map
+  """
+  @type params :: map
+
   @typedoc """
   The success tuple
 
@@ -45,6 +56,7 @@ defmodule OpenIDConnect do
   A string reason for an error failure
   """
   @type reason :: String.t() | %HTTPoison.Error{} | %HTTPoison.Response{}
+
   @typedoc """
   An error tuple
 
@@ -52,6 +64,7 @@ defmodule OpenIDConnect do
   The 3rd element will give details of the failure
   """
   @type error(name) :: {:error, name, reason}
+
   @typedoc """
   A provider's documents
 
@@ -65,22 +78,31 @@ defmodule OpenIDConnect do
           remaining_lifetime: integer | nil
         }
 
-  @spec authorization_uri(provider, name) :: uri
+  @spec authorization_uri(provider, params, name) :: uri
   @doc """
   Builds the authorization URI according to the spec in the providers discovery document
+
+  The `params` option can be used to add additional query params to the URI
+
+  Example:
+      OpenIDConnect.authorization_uri(:google, %{"hd" => "dockyard.com"})
+
+  > It is *highly suggested* that you add the `state` param for security reasons. Your
+  > OpenID Connect provider should have more information on this topic.
   """
-  def authorization_uri(provider, name \\ :openid_connect) do
+  def authorization_uri(provider, params \\ %{}, name \\ :openid_connect) do
     document = discovery_document(provider, name)
     config = config(provider, name)
 
     uri = Map.get(document, "authorization_endpoint")
 
-    params = %{
-      client_id: client_id(config),
-      redirect_uri: redirect_uri(config),
-      response_type: "code",
-      scope: normalize_scope(provider, config[:scope])
-    }
+    params =
+      Map.merge(params, %{
+        client_id: client_id(config),
+        redirect_uri: redirect_uri(config),
+        response_type: "code",
+        scope: normalize_scope(provider, config[:scope])
+      })
 
     build_uri(uri, params)
   end

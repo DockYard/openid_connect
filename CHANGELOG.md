@@ -1,5 +1,8 @@
 # CHANGELOG
 
+## v0.1.2
+* Optional params for `authorization_uri`
+
 ## v0.1.1
 
 * Remove Poison (legacy dep)
