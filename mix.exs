@@ -31,13 +31,13 @@ defmodule OpenIDConnect.Mixfile do
     [extra_applications: [:logger]]
   end
 
-  def description() do
+  def description do
     """
     OpenID Connect for Elixir
     """
   end
 
-  def docs() do
+  def docs do
     [
       main: "readme",
       source_ref: "v#{@version}",
@@ -46,7 +46,7 @@ defmodule OpenIDConnect.Mixfile do
     ]
   end
 
-  def package() do
+  def package do
     [
       maintainers: ["Brian Cardarella"],
       licenses: ["MIT"],
