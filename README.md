@@ -101,7 +101,7 @@ The JWT is encrypted and it should always be verified with the JSON Web Keys (JW
 
 The `claims` is a payload with the information from the `scopes` you requested of the provider.
 
-#### Reead the claims and set your app's user session
+#### Read the claims and set your app's user session
 
 Now that you have the `claims` payload you can use the user data to identify and set the user's session state for your app.
 Setting your app's session state is outside the scope of this library.
