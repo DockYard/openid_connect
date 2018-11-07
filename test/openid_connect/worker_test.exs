@@ -89,7 +89,7 @@ defmodule OpenIDConnect.WorkerTest do
     assert expected_jwk == jwk
   end
 
-  defp mock_http_requests() do
+  defp mock_http_requests do
     HTTPClientMock
     |> expect(:get, fn "https://accounts.google.com/.well-known/openid-configuration" ->
       @google_document
