@@ -30,7 +30,8 @@ config :my_app, :openid_connect_providers,
     client_id: "CLIENT_ID",
     client_secret: "CLIENT_SECRET",
     redirect_uri: "https://example.com/session",
-    scope: "openid email profile"
+    scope: "openid email profile",
+    response_type: "id_token" # if response_type is not specified, "code" will be used
   ]
 ```
 

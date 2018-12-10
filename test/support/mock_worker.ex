@@ -29,12 +29,23 @@ defmodule OpenIDConnect.MockWorker do
     {:reply, Map.get(state, :document), state}
   end
 
+  def handle_call({:discovery_document, :google_id_token}, _from, state) do
+    {:reply, Map.get(state, :document), state}
+  end
+
   def handle_call({:jwk, :google}, _from, state) do
     {:reply, Map.get(state, :jwk), state}
   end
 
   def handle_call({:config, :google}, _from, state) do
     {:reply, Map.get(state, :config), state}
+  end
+
+  def handle_call({:config, :google_id_token}, _from, state) do
+    config = state
+    |> Map.get(:config)
+    |> Keyword.put(:response_type, "id_token")
+    {:reply, config, state}
   end
 
   def handle_call({:put, key, value}, _from, state) do

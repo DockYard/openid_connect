@@ -100,7 +100,7 @@ defmodule OpenIDConnect do
       Map.merge(params, %{
         client_id: client_id(config),
         redirect_uri: redirect_uri(config),
-        response_type: "code",
+        response_type: response_type(config),
         scope: normalize_scope(provider, config[:scope])
       })
 
@@ -251,6 +251,10 @@ defmodule OpenIDConnect do
 
   defp redirect_uri(config) do
     Keyword.get(config, :redirect_uri)
+  end
+
+  defp response_type(config) do
+    Keyword.get(config, :response_type, "code")
   end
 
   defp discovery_document_uri(config) do
