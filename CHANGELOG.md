@@ -1,8 +1,5 @@
 # CHANGELOG
 
-## unreleased
-* Optional configuration for custom `response_type`
-
 ## v0.1.2
 * Optional params for `authorization_uri`
 
