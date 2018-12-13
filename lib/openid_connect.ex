@@ -100,31 +100,33 @@ defmodule OpenIDConnect do
       Map.merge(params, %{
         client_id: client_id(config),
         redirect_uri: redirect_uri(config),
-        response_type: "code",
+        response_type: response_type(provider, config, name),
         scope: normalize_scope(provider, config[:scope])
       })
 
     build_uri(uri, params)
   end
 
-  @spec fetch_tokens(provider, code, name) :: success(map) | error(:fetch_tokens)
+  @spec fetch_tokens(provider, params, name) :: success(map) | error(:fetch_tokens)
   @doc """
   Fetches the authentication tokens from the provider
 
-  The `code` paramater should be taken from the query param `code` in the redirect
-  back to your application from the provider
+  The `params` option should at least include the key/value pairs of the `response_type` that
+  was requested during authorization. `params` may also include any one-off overrides for token
+  fetching.
   """
-  def fetch_tokens(provider, code, name \\ :openid_connect) do
+  def fetch_tokens(provider, params, name \\ :openid_connect) do
     uri = access_token_uri(provider, name)
     config = config(provider, name)
 
-    form_body = [
-      client_id: client_id(config),
-      client_secret: client_secret(config),
-      code: code,
-      grant_type: "authorization_code",
-      redirect_uri: redirect_uri(config)
-    ]
+    form_body =
+      Map.merge(params, %{
+        client_id: client_id(config),
+        client_secret: client_secret(config),
+        grant_type: "authorization_code",
+        redirect_uri: redirect_uri(config)
+      })
+      |> Map.to_list()
 
     headers = [{"Content-Type", "application/x-www-form-urlencoded"}]
 
@@ -251,6 +253,39 @@ defmodule OpenIDConnect do
 
   defp redirect_uri(config) do
     Keyword.get(config, :redirect_uri)
+  end
+
+  defp response_type(provider, config, name) do
+    response_type = Keyword.get(config, :response_type)
+    response_types_supported = response_types_supported(provider, name)
+
+    sort_response_type = fn response_type ->
+      response_type
+      |> String.split()
+      |> Enum.sort()
+    end
+
+    sorted_response_type = sort_response_type.(response_type)
+    sorted_response_types_supported = Enum.map(response_types_supported, sort_response_type)
+
+    cond do
+      sorted_response_type in sorted_response_types_supported ->
+        response_type
+
+      true ->
+        raise ArgumentError,
+          message: """
+          Requested response type (#{response_type}) not supported by provider (#{provider}).
+          Supported types:
+          #{Enum.join(response_types_supported, "\n")}
+          """
+    end
+  end
+
+  defp response_types_supported(provider, name) do
+    provider
+    |> discovery_document(name)
+    |> Map.get("response_types_supported")
   end
 
   defp discovery_document_uri(config) do

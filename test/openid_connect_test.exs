@@ -123,7 +123,7 @@ defmodule OpenIDConnectTest do
 
       try do
         expected =
-          "https://accounts.google.com/o/oauth2/v2/auth?client_id=CLIENT_ID_1&redirect_uri=https%3A%2F%2Fdev.example.com%3A4200%2Fsession&response_type=code&scope=openid+email+profile"
+          "https://accounts.google.com/o/oauth2/v2/auth?client_id=CLIENT_ID_1&redirect_uri=https%3A%2F%2Fdev.example.com%3A4200%2Fsession&response_type=code+id_token+token&scope=openid+email+profile"
 
         assert OpenIDConnect.authorization_uri(:google) == expected
       after
@@ -136,7 +136,7 @@ defmodule OpenIDConnectTest do
 
       try do
         expected =
-          "https://accounts.google.com/o/oauth2/v2/auth?client_id=CLIENT_ID_1&redirect_uri=https%3A%2F%2Fdev.example.com%3A4200%2Fsession&response_type=code&scope=openid+email+profile&hd=dockyard.com"
+          "https://accounts.google.com/o/oauth2/v2/auth?client_id=CLIENT_ID_1&redirect_uri=https%3A%2F%2Fdev.example.com%3A4200%2Fsession&response_type=code+id_token+token&scope=openid+email+profile&hd=dockyard.com"
 
         assert OpenIDConnect.authorization_uri(:google, %{"hd" => "dockyard.com"}) == expected
       after
@@ -149,7 +149,7 @@ defmodule OpenIDConnectTest do
 
       try do
         expected =
-          "https://accounts.google.com/o/oauth2/v2/auth?client_id=CLIENT_ID_1&redirect_uri=https%3A%2F%2Fdev.example.com%3A4200%2Fsession&response_type=code&scope=openid+email+profile"
+          "https://accounts.google.com/o/oauth2/v2/auth?client_id=CLIENT_ID_1&redirect_uri=https%3A%2F%2Fdev.example.com%3A4200%2Fsession&response_type=code+id_token+token&scope=openid+email+profile"
 
         assert OpenIDConnect.authorization_uri(:google, %{}, :other_openid_worker) == expected
       after
@@ -179,7 +179,7 @@ defmodule OpenIDConnectTest do
           {:ok, %HTTPoison.Response{status_code: 200, body: Jason.encode!(%{})}}
         end)
 
-        {:ok, body} = OpenIDConnect.fetch_tokens(:google, "1234")
+        {:ok, body} = OpenIDConnect.fetch_tokens(:google, %{code: "1234"})
 
         assert body == %{}
       after
@@ -197,6 +197,7 @@ defmodule OpenIDConnectTest do
         client_secret: config[:client_secret],
         code: "1234",
         grant_type: "authorization_code",
+        id_token: "abcd",
         redirect_uri: config[:redirect_uri]
       ]
 
@@ -207,7 +208,12 @@ defmodule OpenIDConnectTest do
           {:ok, %HTTPoison.Response{status_code: 200, body: Jason.encode!(%{})}}
         end)
 
-        {:ok, body} = OpenIDConnect.fetch_tokens(:google, "1234", :other_openid_connect)
+        {:ok, body} =
+          OpenIDConnect.fetch_tokens(
+            :google,
+            %{code: "1234", id_token: "abcd"},
+            :other_openid_connect
+          )
 
         assert body == %{}
       after
@@ -227,7 +233,7 @@ defmodule OpenIDConnectTest do
           {:ok, http_error}
         end)
 
-        resp = OpenIDConnect.fetch_tokens(:google, "1234")
+        resp = OpenIDConnect.fetch_tokens(:google, %{code: "1234"})
 
         assert resp == {:error, :fetch_tokens, http_error}
       after
@@ -247,7 +253,7 @@ defmodule OpenIDConnectTest do
           {:ok, http_error}
         end)
 
-        resp = OpenIDConnect.fetch_tokens(:google, "1234")
+        resp = OpenIDConnect.fetch_tokens(:google, %{code: "1234"})
 
         assert resp == {:error, :fetch_tokens, http_error}
       after
