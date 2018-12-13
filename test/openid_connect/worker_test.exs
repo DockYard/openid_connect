@@ -28,6 +28,7 @@ defmodule OpenIDConnect.WorkerTest do
       |> elem(1)
       |> Map.get(:body)
       |> Jason.decode!()
+      |> OpenIDConnect.normalize_discovery_document()
 
     expected_jwk =
       @google_certs
@@ -66,6 +67,7 @@ defmodule OpenIDConnect.WorkerTest do
       |> elem(1)
       |> Map.get(:body)
       |> Jason.decode!()
+      |> OpenIDConnect.normalize_discovery_document()
 
     assert expected_document == discovery_document
   end

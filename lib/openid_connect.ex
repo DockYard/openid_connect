@@ -16,11 +16,6 @@ defmodule OpenIDConnect do
   @type jwt :: String.t()
 
   @typedoc """
-  The code returned by an OpenID Connect provider during the redirect
-  """
-  @type code :: String.t()
-
-  @typedoc """
   The provider name as an atom
 
   Example: `:google`
@@ -186,13 +181,36 @@ defmodule OpenIDConnect do
          {:ok, jwk} <- from_certs(certs) do
       {:ok,
        %{
-         discovery_document: discovery_document,
+         discovery_document: normalize_discovery_document(discovery_document),
          jwk: jwk,
          remaining_lifetime: remaining_lifetime
        }}
     else
       {:error, reason} -> {:error, :update_documents, reason}
     end
+  end
+
+  @doc false
+  def normalize_discovery_document(discovery_document) do
+    sorted_claims_supported =
+      discovery_document
+      |> Map.get("claims_supported")
+      |> Enum.sort()
+
+    sorted_response_types_supported =
+      discovery_document
+      |> Map.get("response_types_supported")
+      |> Enum.map(fn response_type ->
+        response_type
+        |> String.split()
+        |> Enum.sort()
+        |> Enum.join(" ")
+      end)
+
+    Map.merge(discovery_document, %{
+      "claims_supported" => sorted_claims_supported,
+      "response_types_supported" => sorted_response_types_supported
+    })
   end
 
   defp peek_protected(jwt) do
@@ -256,20 +274,17 @@ defmodule OpenIDConnect do
   end
 
   defp response_type(provider, config, name) do
-    response_type = Keyword.get(config, :response_type)
-    response_types_supported = response_types_supported(provider, name)
-
-    sort_response_type = fn response_type ->
-      response_type
+    response_type =
+      config
+      |> Keyword.get(:response_type)
       |> String.split()
       |> Enum.sort()
-    end
+      |> Enum.join(" ")
 
-    sorted_response_type = sort_response_type.(response_type)
-    sorted_response_types_supported = Enum.map(response_types_supported, sort_response_type)
+    response_types_supported = response_types_supported(provider, name)
 
     cond do
-      sorted_response_type in sorted_response_types_supported ->
+      response_type in response_types_supported ->
         response_type
 
       true ->

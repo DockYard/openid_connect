@@ -28,6 +28,7 @@ defmodule OpenIDConnectTest do
         |> elem(1)
         |> Map.get(:body)
         |> Jason.decode!()
+        |> OpenIDConnect.normalize_discovery_document()
 
       expected_jwk =
         @google_certs

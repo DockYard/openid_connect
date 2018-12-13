@@ -5,6 +5,7 @@ defmodule OpenIDConnect.MockWorker do
                    |> elem(1)
                    |> Map.get(:body)
                    |> Jason.decode!()
+                   |> OpenIDConnect.normalize_discovery_document()
 
   @google_jwk Fixtures.load(:google, :certs)
               |> elem(1)
