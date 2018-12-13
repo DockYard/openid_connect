@@ -287,9 +287,7 @@ defmodule OpenIDConnect do
     response_type =
       config
       |> Keyword.get(:response_type)
-      |> String.split()
-      |> Enum.sort()
-      |> Enum.join(" ")
+      |> normalize_response_type(provider)
 
     response_types_supported = response_types_supported(provider, name)
 
@@ -305,6 +303,23 @@ defmodule OpenIDConnect do
           #{Enum.join(response_types_supported, "\n")}
           """
     end
+  end
+
+  defp normalize_response_type(response_type, provider)
+       when is_nil(response_type) or response_type == [] do
+    raise ArgumentError, "no response_type has been defined for provider `#{provider}`"
+  end
+
+  defp normalize_response_type(response_type, provider) when is_binary(response_type) do
+    response_type
+    |> String.split()
+    |> normalize_response_type(provider)
+  end
+
+  defp normalize_response_type(response_type, _provider) when is_list(response_type) do
+    response_type
+    |> Enum.sort()
+    |> Enum.join(" ")
   end
 
   defp response_types_supported(provider, name) do
