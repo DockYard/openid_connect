@@ -110,7 +110,17 @@ defmodule OpenIDConnect do
   was requested during authorization. `params` may also include any one-off overrides for token
   fetching.
   """
-  def fetch_tokens(provider, params, name \\ :openid_connect) do
+  def fetch_tokens(provider, params, name \\ :openid_connect)
+
+  def fetch_tokens(provider, code, name) when is_binary(code) do
+    IO.warn(
+      "Deprecation: `OpenIDConnect.fetch_tokens/3` no longer takes a binary as the 2nd argument. Please refer to the docs for the new API."
+    )
+
+    fetch_tokens(provider, %{code: code}, name)
+  end
+
+  def fetch_tokens(provider, params, name) do
     uri = access_token_uri(provider, name)
     config = config(provider, name)
 
