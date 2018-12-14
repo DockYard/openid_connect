@@ -16,11 +16,6 @@ defmodule OpenIDConnect do
   @type jwt :: String.t()
 
   @typedoc """
-  The code returned by an OpenID Connect provider during the redirect
-  """
-  @type code :: String.t()
-
-  @typedoc """
   The provider name as an atom
 
   Example: `:google`
@@ -100,31 +95,43 @@ defmodule OpenIDConnect do
       Map.merge(params, %{
         client_id: client_id(config),
         redirect_uri: redirect_uri(config),
-        response_type: "code",
+        response_type: response_type(provider, config, name),
         scope: normalize_scope(provider, config[:scope])
       })
 
     build_uri(uri, params)
   end
 
-  @spec fetch_tokens(provider, code, name) :: success(map) | error(:fetch_tokens)
+  @spec fetch_tokens(provider, params, name) :: success(map) | error(:fetch_tokens)
   @doc """
   Fetches the authentication tokens from the provider
 
-  The `code` paramater should be taken from the query param `code` in the redirect
-  back to your application from the provider
+  The `params` option should at least include the key/value pairs of the `response_type` that
+  was requested during authorization. `params` may also include any one-off overrides for token
+  fetching.
   """
-  def fetch_tokens(provider, code, name \\ :openid_connect) do
+  def fetch_tokens(provider, params, name \\ :openid_connect)
+
+  def fetch_tokens(provider, code, name) when is_binary(code) do
+    IO.warn(
+      "Deprecation: `OpenIDConnect.fetch_tokens/3` no longer takes a binary as the 2nd argument. Please refer to the docs for the new API."
+    )
+
+    fetch_tokens(provider, %{code: code}, name)
+  end
+
+  def fetch_tokens(provider, params, name) do
     uri = access_token_uri(provider, name)
     config = config(provider, name)
 
-    form_body = [
-      client_id: client_id(config),
-      client_secret: client_secret(config),
-      code: code,
-      grant_type: "authorization_code",
-      redirect_uri: redirect_uri(config)
-    ]
+    form_body =
+      Map.merge(params, %{
+        client_id: client_id(config),
+        client_secret: client_secret(config),
+        grant_type: "authorization_code",
+        redirect_uri: redirect_uri(config)
+      })
+      |> Map.to_list()
 
     headers = [{"Content-Type", "application/x-www-form-urlencoded"}]
 
@@ -184,13 +191,36 @@ defmodule OpenIDConnect do
          {:ok, jwk} <- from_certs(certs) do
       {:ok,
        %{
-         discovery_document: discovery_document,
+         discovery_document: normalize_discovery_document(discovery_document),
          jwk: jwk,
          remaining_lifetime: remaining_lifetime
        }}
     else
       {:error, reason} -> {:error, :update_documents, reason}
     end
+  end
+
+  @doc false
+  def normalize_discovery_document(discovery_document) do
+    sorted_claims_supported =
+      discovery_document
+      |> Map.get("claims_supported")
+      |> Enum.sort()
+
+    sorted_response_types_supported =
+      discovery_document
+      |> Map.get("response_types_supported")
+      |> Enum.map(fn response_type ->
+        response_type
+        |> String.split()
+        |> Enum.sort()
+        |> Enum.join(" ")
+      end)
+
+    Map.merge(discovery_document, %{
+      "claims_supported" => sorted_claims_supported,
+      "response_types_supported" => sorted_response_types_supported
+    })
   end
 
   defp peek_protected(jwt) do
@@ -251,6 +281,51 @@ defmodule OpenIDConnect do
 
   defp redirect_uri(config) do
     Keyword.get(config, :redirect_uri)
+  end
+
+  defp response_type(provider, config, name) do
+    response_type =
+      config
+      |> Keyword.get(:response_type)
+      |> normalize_response_type(provider)
+
+    response_types_supported = response_types_supported(provider, name)
+
+    cond do
+      response_type in response_types_supported ->
+        response_type
+
+      true ->
+        raise ArgumentError,
+          message: """
+          Requested response type (#{response_type}) not supported by provider (#{provider}).
+          Supported types:
+          #{Enum.join(response_types_supported, "\n")}
+          """
+    end
+  end
+
+  defp normalize_response_type(response_type, provider)
+       when is_nil(response_type) or response_type == [] do
+    raise ArgumentError, "no response_type has been defined for provider `#{provider}`"
+  end
+
+  defp normalize_response_type(response_type, provider) when is_binary(response_type) do
+    response_type
+    |> String.split()
+    |> normalize_response_type(provider)
+  end
+
+  defp normalize_response_type(response_type, _provider) when is_list(response_type) do
+    response_type
+    |> Enum.sort()
+    |> Enum.join(" ")
+  end
+
+  defp response_types_supported(provider, name) do
+    provider
+    |> discovery_document(name)
+    |> Map.get("response_types_supported")
   end
 
   defp discovery_document_uri(config) do

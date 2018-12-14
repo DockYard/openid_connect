@@ -30,6 +30,7 @@ config :my_app, :openid_connect_providers,
     client_id: "CLIENT_ID",
     client_secret: "CLIENT_SECRET",
     redirect_uri: "https://example.com/session",
+    response_type: "code",
     scope: "openid email profile"
   ]
 ```
@@ -84,11 +85,11 @@ is where the remainder of your steps will take place.
 
 #### Fetch the JWT
 
-The JSON Web Token (JWT) must be fetched using the `code` query param that was part of the redirect
-to your application:
+The JSON Web Token (JWT) must be fetched, using the key/value pairs from the `response_type` params that were
+part of the redirect to your application:
 
 ```elixir
-{:ok, tokens} = OpenIDConnect.fetch_tokens(:google, params["code"])
+{:ok, tokens} = OpenIDConnect.fetch_tokens(:google, %{code: params["code"]})
 ```
 
 #### Verify the JWT
