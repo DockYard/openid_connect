@@ -1,5 +1,8 @@
 # CHANGELOG
 
+## v0.2.1
+* Relaxed jason version requirement
+
 ## v0.2.0
 * BREAKING CHANGE - Multiple response types supported. See: PR #17 for details
 
