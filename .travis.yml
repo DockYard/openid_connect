@@ -1,9 +1,12 @@
 language: elixir
 elixir:
-  - 1.3.0
   - 1.7.4
 otp_release:
   - 21.2
+matrix:
+  include:
+    - elixir: 1.3.0
+     otp_release: 18.0
 sudo: false # to use faster container based build environment
 cache:
   directories:
