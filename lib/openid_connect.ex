@@ -92,12 +92,15 @@ defmodule OpenIDConnect do
     uri = Map.get(document, "authorization_endpoint")
 
     params =
-      Map.merge(params, %{
-        client_id: client_id(config),
-        redirect_uri: redirect_uri(config),
-        response_type: response_type(provider, config, name),
-        scope: normalize_scope(provider, config[:scope])
-      })
+      Map.merge(
+        %{
+          client_id: client_id(config),
+          redirect_uri: redirect_uri(config),
+          response_type: response_type(provider, config, name),
+          scope: normalize_scope(provider, config[:scope])
+        },
+        params
+      )
 
     build_uri(uri, params)
   end
@@ -125,12 +128,15 @@ defmodule OpenIDConnect do
     config = config(provider, name)
 
     form_body =
-      Map.merge(params, %{
-        client_id: client_id(config),
-        client_secret: client_secret(config),
-        grant_type: "authorization_code",
-        redirect_uri: redirect_uri(config)
-      })
+      Map.merge(
+        %{
+          client_id: client_id(config),
+          client_secret: client_secret(config),
+          grant_type: "authorization_code",
+          redirect_uri: redirect_uri(config)
+        },
+        params
+      )
       |> Map.to_list()
 
     headers = [{"Content-Type", "application/x-www-form-urlencoded"}]

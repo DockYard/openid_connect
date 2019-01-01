@@ -145,6 +145,19 @@ defmodule OpenIDConnectTest do
       end
     end
 
+    test "with overridden params" do
+      {:ok, pid} = GenServer.start_link(MockWorker, [], name: :openid_connect)
+
+      try do
+        expected =
+          "https://accounts.google.com/o/oauth2/v2/auth?client_id=CLIENT_ID_1&redirect_uri=https%3A%2F%2Fdev.example.com%3A4200%2Fsession&response_type=code+id_token+token&scope=something+else"
+
+        assert OpenIDConnect.authorization_uri(:google, %{scope: "something else"}) == expected
+      after
+        GenServer.stop(pid)
+      end
+    end
+
     test "with custom worker name" do
       {:ok, pid} = GenServer.start_link(MockWorker, [], name: :other_openid_worker)
 
@@ -215,6 +228,33 @@ defmodule OpenIDConnectTest do
             %{code: "1234", id_token: "abcd"},
             :other_openid_connect
           )
+
+        assert body == %{}
+      after
+        GenServer.stop(pid)
+      end
+    end
+
+    test "when params are overridden" do
+      {:ok, pid} = GenServer.start_link(MockWorker, [], name: :openid_connect)
+
+      config = GenServer.call(:openid_connect, {:config, :google})
+
+      form_body = [
+        client_id: config[:client_id],
+        client_secret: config[:client_secret],
+        grant_type: "refresh_token",
+        redirect_uri: config[:redirect_uri]
+      ]
+
+      try do
+        expect(HTTPClientMock, :post, fn "https://www.googleapis.com/oauth2/v4/token",
+                                         {:form, ^form_body},
+                                         _headers ->
+          {:ok, %HTTPoison.Response{status_code: 200, body: Jason.encode!(%{})}}
+        end)
+
+        {:ok, body} = OpenIDConnect.fetch_tokens(:google, %{grant_type: "refresh_token"})
 
         assert body == %{}
       after
