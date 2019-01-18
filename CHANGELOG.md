@@ -1,5 +1,9 @@
 # CHANGELOG
 
+## v0.2.2
+* Allow missing `claims_supported` in discovery document
+* Allow overriding document params 
+
 ## v0.2.1
 * Relaxed jason version requirement
 
