@@ -117,6 +117,24 @@ defmodule OpenIDConnectTest do
                {:error, :update_documents, %HTTPoison.Response{status_code: 404}}
     end
   end
+  
+  describe "normalize_discovery_document" do
+    test "defaults to empty list if claims_supported is missing" do
+      document_without_claims =
+        @google_document
+        |> elem(1)
+        |> Map.get(:body)
+        |> Jason.decode!()
+        |> Map.delete("claims_supported")
+
+      normalized_claims =
+        document_without_claims
+        |> OpenIDConnect.normalize_discovery_document()
+        |> Map.get("claims_supported")
+
+      assert normalized_claims == []
+    end
+  end
 
   describe "generating the authorization uri" do
     test "with default worker name" do
