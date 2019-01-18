@@ -208,11 +208,13 @@ defmodule OpenIDConnect do
 
   @doc false
   def normalize_discovery_document(discovery_document) do
+    # claims_supported may be missing as it is marked RECOMMENDED by the spec, default to an empty list
     sorted_claims_supported =
       discovery_document
-      |> Map.get("claims_supported")
+      |> Map.get("claims_supported", [])
       |> Enum.sort()
 
+    # response_types_supported's presence is REQUIRED by the spec, crash when missing
     sorted_response_types_supported =
       discovery_document
       |> Map.get("response_types_supported")
