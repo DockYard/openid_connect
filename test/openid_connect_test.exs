@@ -11,6 +11,24 @@ defmodule OpenIDConnectTest do
 
   alias OpenIDConnect.{HTTPClientMock, MockWorker}
 
+  test "README install version check" do
+    app = :openid_connect
+
+    app_version = "#{Application.spec(app, :vsn)}"
+    readme = File.read!("README.md")
+    [_, readme_versions] = Regex.run(~r/{:#{app}, "(.+)"}/, readme)
+
+    assert Version.match?(
+             app_version,
+             readme_versions
+           ),
+           """
+           Install version constraint in README.md does not match to current app version.
+           Current App Version: #{app_version}
+           Readme Install Versions: #{readme_versions}
+           """
+  end
+
   describe "update_documents" do
     test "when the new documents are retrieved successfully" do
       config = [
@@ -117,7 +135,7 @@ defmodule OpenIDConnectTest do
                {:error, :update_documents, %HTTPoison.Response{status_code: 404}}
     end
   end
-  
+
   describe "normalize_discovery_document" do
     test "defaults to empty list if claims_supported is missing" do
       document_without_claims =
