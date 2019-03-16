@@ -52,7 +52,7 @@ children =
     worker(OpenIDConnect.Worker, [Application.get_env(:my_app, :openid_connect_providers)]),
   ]
 
-opts = [strategy: :one_for_one, name: DockYard.Supervisor]
+opts = [strategy: :one_for_one, name: MyApp.Supervisor]
 Supervisor.start_link(children, opts)
 ```
 
