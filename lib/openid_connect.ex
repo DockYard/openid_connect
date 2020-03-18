@@ -142,7 +142,7 @@ defmodule OpenIDConnect do
     headers = [{"Content-Type", "application/x-www-form-urlencoded"}]
 
     with {:ok, %HTTPoison.Response{status_code: status_code} = resp} when status_code in 200..299 <-
-           http_client().post(uri, {:form, form_body}, headers),
+           http_client().post(uri, {:form, form_body}, headers, http_client_options()),
          {:ok, json} <- Jason.decode(resp.body),
          {:ok, json} <- assert_json(json) do
       {:ok, json}
@@ -342,7 +342,7 @@ defmodule OpenIDConnect do
 
   defp fetch_resource(uri) do
     with {:ok, %HTTPoison.Response{status_code: status_code} = resp} when status_code in 200..299 <-
-           http_client().get(uri),
+           http_client().get(uri, [], http_client_options()),
          {:ok, json} <- Jason.decode(resp.body),
          {:ok, json} <- assert_json(json) do
       {:ok, json, remaining_lifetime(resp.headers)}
@@ -397,5 +397,9 @@ defmodule OpenIDConnect do
 
   defp http_client do
     Application.get_env(:openid_connect, :http_client, HTTPoison)
+  end
+
+  defp http_client_options do
+    Application.get_env(:openid_connect, :http_client_options, [])
   end
 end

@@ -36,10 +36,10 @@ defmodule OpenIDConnectTest do
       ]
 
       HTTPClientMock
-      |> expect(:get, fn "https://accounts.google.com/.well-known/openid-configuration" ->
+      |> expect(:get, fn "https://accounts.google.com/.well-known/openid-configuration", _headers, _opts ->
         @google_document
       end)
-      |> expect(:get, fn "https://www.googleapis.com/oauth2/v3/certs" -> @google_certs end)
+      |> expect(:get, fn "https://www.googleapis.com/oauth2/v3/certs", _headers, _opts -> @google_certs end)
 
       expected_document =
         @google_document
@@ -75,7 +75,7 @@ defmodule OpenIDConnectTest do
       expect(
         HTTPClientMock,
         :get,
-        fn "https://accounts.google.com/.well-known/openid-configuration" ->
+        fn "https://accounts.google.com/.well-known/openid-configuration", _headers, _opts ->
           {:ok, %HTTPoison.Error{id: nil, reason: :nxdomain}}
         end
       )
@@ -92,7 +92,7 @@ defmodule OpenIDConnectTest do
       expect(
         HTTPClientMock,
         :get,
-        fn "https://accounts.google.com/.well-known/openid-configuration" ->
+        fn "https://accounts.google.com/.well-known/openid-configuration", _headers, _opts ->
           {:ok, %HTTPoison.Response{status_code: 404}}
         end
       )
@@ -107,10 +107,10 @@ defmodule OpenIDConnectTest do
       ]
 
       HTTPClientMock
-      |> expect(:get, fn "https://accounts.google.com/.well-known/openid-configuration" ->
+      |> expect(:get, fn "https://accounts.google.com/.well-known/openid-configuration", _headers, _opts ->
         @google_document
       end)
-      |> expect(:get, fn "https://www.googleapis.com/oauth2/v3/certs" ->
+      |> expect(:get, fn "https://www.googleapis.com/oauth2/v3/certs", _headers, _opts ->
         {:ok, %HTTPoison.Error{reason: :nxdomain}}
       end)
 
@@ -124,10 +124,31 @@ defmodule OpenIDConnectTest do
       ]
 
       HTTPClientMock
-      |> expect(:get, fn "https://accounts.google.com/.well-known/openid-configuration" ->
+      |> expect(:get, fn "https://accounts.google.com/.well-known/openid-configuration", _headers, _opts ->
         @google_document
       end)
-      |> expect(:get, fn "https://www.googleapis.com/oauth2/v3/certs" ->
+      |> expect(:get, fn "https://www.googleapis.com/oauth2/v3/certs", _headers, _opts ->
+        {:ok, %HTTPoison.Response{status_code: 404}}
+      end)
+
+      assert OpenIDConnect.update_documents(config) ==
+               {:error, :update_documents, %HTTPoison.Response{status_code: 404}}
+    end
+
+    test "with HTTP client options" do
+      config = [
+        discovery_document_uri: "https://accounts.google.com/.well-known/openid-configuration"
+      ]
+
+      opts = [ssl: [{:verify, :verify_none}]]
+      Application.put_env(:openid_connect, :http_client_options, opts)
+
+      HTTPClientMock
+      |> expect(:get, fn
+        "https://accounts.google.com/.well-known/openid-configuration", _headers, ^opts ->
+          @google_document
+      end)
+      |> expect(:get, fn "https://www.googleapis.com/oauth2/v3/certs", _headers, ^opts ->
         {:ok, %HTTPoison.Response{status_code: 404}}
       end)
 
@@ -225,7 +246,8 @@ defmodule OpenIDConnectTest do
       try do
         expect(HTTPClientMock, :post, fn "https://www.googleapis.com/oauth2/v4/token",
                                          {:form, ^form_body},
-                                         _headers ->
+                                         _headers,
+                                         _opts ->
           {:ok, %HTTPoison.Response{status_code: 200, body: Jason.encode!(%{})}}
         end)
 
@@ -254,7 +276,8 @@ defmodule OpenIDConnectTest do
       try do
         expect(HTTPClientMock, :post, fn "https://www.googleapis.com/oauth2/v4/token",
                                          {:form, ^form_body},
-                                         _headers ->
+                                         _headers,
+                                         _opts ->
           {:ok, %HTTPoison.Response{status_code: 200, body: Jason.encode!(%{})}}
         end)
 
@@ -286,7 +309,8 @@ defmodule OpenIDConnectTest do
       try do
         expect(HTTPClientMock, :post, fn "https://www.googleapis.com/oauth2/v4/token",
                                          {:form, ^form_body},
-                                         _headers ->
+                                         _headers,
+                                         _opts ->
           {:ok, %HTTPoison.Response{status_code: 200, body: Jason.encode!(%{})}}
         end)
 
@@ -306,7 +330,8 @@ defmodule OpenIDConnectTest do
       try do
         expect(HTTPClientMock, :post, fn "https://www.googleapis.com/oauth2/v4/token",
                                          {:form, _form_body},
-                                         _headers ->
+                                         _headers,
+                                         _opts ->
           {:ok, http_error}
         end)
 
@@ -326,7 +351,8 @@ defmodule OpenIDConnectTest do
       try do
         expect(HTTPClientMock, :post, fn "https://www.googleapis.com/oauth2/v4/token",
                                          {:form, _form_body},
-                                         _headers ->
+                                         _headers,
+                                         _opts ->
           {:ok, http_error}
         end)
 
