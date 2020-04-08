@@ -88,7 +88,7 @@ defmodule OpenIDConnect.WorkerTest do
       |> Jason.decode!()
       |> JOSE.JWK.from()
 
-    assert expected_jwk == jwk
+    assert {:ok, expected_jwk} == jwk
   end
 
   defp mock_http_requests do

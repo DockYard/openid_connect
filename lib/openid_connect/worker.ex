@@ -50,8 +50,21 @@ defmodule OpenIDConnect.Worker do
   end
 
   def handle_call({:jwk, provider}, _from, state) do
-    jwk = get_in(state, [provider, :documents, :jwk])
-    {:reply, jwk, state}
+    case get_in(state, [provider, :documents, :jwk]) do
+      nil ->
+        config = get_in(state, [provider, :config])
+        case update_documents(provider, config) do
+          {:ok, %{jwk: jwk} = documents} ->
+            put_in(state, [provider, :documents], documents)
+            {:reply, {:ok, jwk}, state}
+
+          error ->
+            {:reply, error, state}
+        end
+
+      jwk ->
+        {:reply, {:ok, jwk}, state}
+    end
   end
 
   def handle_call({:config, provider}, _from, state) do
