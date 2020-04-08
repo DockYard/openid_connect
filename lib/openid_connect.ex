@@ -267,7 +267,8 @@ defmodule OpenIDConnect do
   end
 
   defp discovery_document(provider, name) do
-    GenServer.call(name, {:discovery_document, provider})
+    {:ok, doc} = GenServer.call(name, {:discovery_document, provider})
+    doc
   end
 
   defp jwk(provider, name) do

@@ -20,7 +20,11 @@ defmodule OpenIDConnect.Worker do
   def init(provider_configs) do
     state =
       Enum.into(provider_configs, %{}, fn {provider, config} ->
-        documents = update_documents(provider, config)
+        documents =
+          case update_documents(provider, config) do
+            {:ok, documents} -> documents
+            _ -> nil
+          end
         {provider, %{config: config, documents: documents}}
       end)
 
@@ -28,8 +32,21 @@ defmodule OpenIDConnect.Worker do
   end
 
   def handle_call({:discovery_document, provider}, _from, state) do
-    discovery_document = get_in(state, [provider, :documents, :discovery_document])
-    {:reply, discovery_document, state}
+    case get_in(state, [provider, :documents, :discovery_document]) do
+      nil ->
+        config = get_in(state, [provider, :config])
+        case update_documents(provider, config) do
+          {:ok, %{discovery_document: discovery_document} = documents} ->
+            put_in(state, [provider, :documents], documents)
+            {:reply, {:ok, discovery_document}, state}
+
+          error ->
+            {:reply, error, state}
+        end
+
+      discovery_document ->
+        {:reply, {:ok, discovery_document}, state}
+    end
   end
 
   def handle_call({:jwk, provider}, _from, state) do
@@ -44,22 +61,32 @@ defmodule OpenIDConnect.Worker do
 
   def handle_info({:update_documents, provider}, state) do
     config = get_in(state, [provider, :config])
-    documents = update_documents(provider, config)
 
-    state = put_in(state, [provider, :documents], documents)
+    state =
+      case update_documents(provider, config) do
+        {:ok, documents} ->
+          put_in(state, [provider, :documents], documents)
+
+        _ ->
+          state
+      end
 
     {:noreply, state}
   end
 
   defp update_documents(provider, config) do
-    {:ok, %{remaining_lifetime: remaining_lifetime}} =
-      {:ok, documents} = OpenIDConnect.update_documents(config)
+    case OpenIDConnect.update_documents(config) do
+      {:ok, %{remaining_lifetime: remaining_lifetime} = documents} ->
+        refresh_time = time_until_next_refresh(remaining_lifetime)
 
-    refresh_time = time_until_next_refresh(remaining_lifetime)
+        Process.send_after(self(), {:update_documents, provider}, refresh_time)
 
-    Process.send_after(self(), {:update_documents, provider}, refresh_time)
+        {:ok, documents}
 
-    documents
+      error ->
+        Process.send_after(self(), {:update_documents, provider}, @refresh_time)
+        error
+    end
   end
 
   defp time_until_next_refresh(nil), do: @refresh_time
