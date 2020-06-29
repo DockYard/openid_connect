@@ -37,7 +37,7 @@ config :my_app, :openid_connect_providers,
 
 You *must* setup with your provider first. Your provider will have the correct data to provider for the config settings above.
 
-Most major OAuth2 providers have added support for OpenIDConnect. [See a short list of most major adopters of OpenIDConnect](https://en.wikipedia.org/wiki/OpenID_Connect#Adoption).
+Most major OAuth2 providers have added support for OpenIDConnect. [See a short list of most major adopters of OpenIDConnect](https://en.wikipedia.org/wiki/List_of_OAuth_providers).
 
 > You can add multiple providers in the list. The key for each provider is just a reference that you'll
 > use with the `OpenIDConnect` module in your app code.
