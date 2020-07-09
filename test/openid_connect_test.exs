@@ -36,10 +36,14 @@ defmodule OpenIDConnectTest do
       ]
 
       HTTPClientMock
-      |> expect(:get, fn "https://accounts.google.com/.well-known/openid-configuration", _headers, _opts ->
+      |> expect(:get, fn "https://accounts.google.com/.well-known/openid-configuration",
+                         _headers,
+                         _opts ->
         @google_document
       end)
-      |> expect(:get, fn "https://www.googleapis.com/oauth2/v3/certs", _headers, _opts -> @google_certs end)
+      |> expect(:get, fn "https://www.googleapis.com/oauth2/v3/certs", _headers, _opts ->
+        @google_certs
+      end)
 
       expected_document =
         @google_document
@@ -107,7 +111,9 @@ defmodule OpenIDConnectTest do
       ]
 
       HTTPClientMock
-      |> expect(:get, fn "https://accounts.google.com/.well-known/openid-configuration", _headers, _opts ->
+      |> expect(:get, fn "https://accounts.google.com/.well-known/openid-configuration",
+                         _headers,
+                         _opts ->
         @google_document
       end)
       |> expect(:get, fn "https://www.googleapis.com/oauth2/v3/certs", _headers, _opts ->
@@ -124,7 +130,9 @@ defmodule OpenIDConnectTest do
       ]
 
       HTTPClientMock
-      |> expect(:get, fn "https://accounts.google.com/.well-known/openid-configuration", _headers, _opts ->
+      |> expect(:get, fn "https://accounts.google.com/.well-known/openid-configuration",
+                         _headers,
+                         _opts ->
         @google_document
       end)
       |> expect(:get, fn "https://www.googleapis.com/oauth2/v3/certs", _headers, _opts ->
@@ -490,6 +498,28 @@ defmodule OpenIDConnectTest do
 
         result = OpenIDConnect.verify(:google, token)
         assert result == {:error, :verify, "verification failed"}
+      after
+        GenServer.stop(pid)
+      end
+    end
+
+    test "fails when verification fails due to token manipulation" do
+      {:ok, pid} = GenServer.start_link(MockWorker, [], name: :openid_connect)
+
+      try do
+        {jwk, []} = Code.eval_file("test/fixtures/rsa/jwk1.exs")
+        :ok = GenServer.call(pid, {:put, :jwk, JOSE.JWK.from(jwk)})
+
+        claims = %{"email" => "brian@example.com"}
+
+        {_alg, token} =
+          jwk
+          |> JOSE.JWK.from()
+          |> JOSE.JWS.sign(Jason.encode!(claims), %{"alg" => "RS256"})
+          |> JOSE.JWS.compact()
+
+        result = OpenIDConnect.verify(:google, token <> " :)")
+        assert result == {:error, :verify, "verification error"}
       after
         GenServer.stop(pid)
       end

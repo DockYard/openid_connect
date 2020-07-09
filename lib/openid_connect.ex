@@ -179,6 +179,9 @@ defmodule OpenIDConnect do
 
       {false, _claims, _jwk} ->
         {:error, :verify, "verification failed"}
+
+      _ ->
+        {:error, :verify, "verification error"}
     end
   end
 
