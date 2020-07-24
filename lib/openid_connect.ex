@@ -152,12 +152,24 @@ defmodule OpenIDConnect do
     end
   end
 
-  @spec verify(provider, jwt, name) :: success(claims) | error(:verify)
+  @spec verify(provider, jwt, name) ::
+          success(claims) | error(:verify)
   @doc """
   Verifies the validity of the JSON Web Token (JWT)
 
-  This verification will assert the token's encryption against the provider's
-  JSON Web Key (JWK)
+  This verification will:
+
+  1. assert the token's encryption against the provider's JSON Web Key (JWK)
+  2. ensure that the token has not expired (`exp` claim, default leeway of 30s)
+  3. ensure that the token is intended for this application (`aud` claim)
+
+  The expiration delay can be customized using the `leeway` option in the
+  provider configuration, e.g. `leeway: 15` will allow a 15 second grace period
+  before the token is effectively considered expired.
+
+  The token `aud` claim can be either a string or an array of strings and is
+  matched against the provider `client_id`.
+
   """
   def verify(provider, jwt, name \\ :openid_connect) do
     jwk = jwk(provider, name)
@@ -165,8 +177,10 @@ defmodule OpenIDConnect do
     with {:ok, protected} <- peek_protected(jwt),
          {:ok, decoded_protected} <- Jason.decode(protected),
          {:ok, token_alg} <- Map.fetch(decoded_protected, "alg"),
-         {true, claims, _jwk} <- do_verify(jwk, token_alg, jwt) do
-      Jason.decode(claims)
+         {true, payload, _jwk} <- verify_signature(jwk, token_alg, jwt),
+         {:ok, unverified_claims} <- Jason.decode(payload),
+         {:ok, verified_claims} <- verify_claims(unverified_claims, config(provider, name)) do
+      {:ok, verified_claims}
     else
       {:error, %Jason.DecodeError{}} ->
         {:error, :verify, "token claims did not contain a JSON payload"}
@@ -179,6 +193,9 @@ defmodule OpenIDConnect do
 
       {false, _claims, _jwk} ->
         {:error, :verify, "verification failed"}
+
+      {:error, invalid_claim, message} ->
+        {:error, :verify, "invalid #{invalid_claim} claim: #{message}"}
 
       _ ->
         {:error, :verify, "verification error"}
@@ -242,11 +259,11 @@ defmodule OpenIDConnect do
     end
   end
 
-  defp do_verify(%JOSE.JWK{keys: {:jose_jwk_set, jwks}}, token_alg, jwt) do
+  defp verify_signature(%JOSE.JWK{keys: {:jose_jwk_set, jwks}}, token_alg, jwt) do
     Enum.find_value(jwks, {false, "{}", jwt}, fn jwk ->
       jwk
       |> JOSE.JWK.from()
-      |> do_verify(token_alg, jwt)
+      |> verify_signature(token_alg, jwt)
       |> case do
         {false, _claims, _jwt} -> false
         verified_claims -> verified_claims
@@ -254,7 +271,7 @@ defmodule OpenIDConnect do
     end)
   end
 
-  defp do_verify(%JOSE.JWK{} = jwk, token_alg, jwt),
+  defp verify_signature(%JOSE.JWK{} = jwk, token_alg, jwt),
     do: JOSE.JWS.verify_strict(jwk, [token_alg], jwt)
 
   defp from_certs(certs) do
@@ -265,6 +282,43 @@ defmodule OpenIDConnect do
         {:error, "certificates bad format"}
     end
   end
+
+  defp verify_claims(claims, config) do
+    with :ok <- verify_exp_claim(claims, exp_leeway(config)),
+         :ok <- verify_aud_claim(claims, client_id(config)) do
+      {:ok, claims}
+    end
+  end
+
+  defp verify_exp_claim(claims, leeway) do
+    case Map.fetch(claims, "exp") do
+      {:ok, exp} when is_integer(exp) ->
+        if epoch() < exp + leeway,
+          do: :ok,
+          else: {:error, "exp", "token has expired"}
+
+      {:ok, _exp} ->
+        {:error, "exp", "is invalid"}
+
+      :error ->
+        {:error, "exp", "missing"}
+    end
+  end
+
+  defp verify_aud_claim(claims, expected_aud) do
+    case Map.fetch(claims, "aud") do
+      {:ok, aud} ->
+        if audience_matches?(aud, expected_aud),
+          do: :ok,
+          else: {:error, "aud", "token is intended for another application"}
+
+      :error ->
+        {:error, "aud", "missing"}
+    end
+  end
+
+  defp audience_matches?(aud, expected_aud) when is_list(aud), do: Enum.member?(aud, expected_aud)
+  defp audience_matches?(aud, expected_aud), do: aud === expected_aud
 
   defp discovery_document(provider, name) do
     GenServer.call(name, {:discovery_document, provider})
@@ -292,6 +346,10 @@ defmodule OpenIDConnect do
 
   defp redirect_uri(config) do
     Keyword.get(config, :redirect_uri)
+  end
+
+  defp exp_leeway(config) do
+    Keyword.get(config, :leeway, 30)
   end
 
   defp response_type(provider, config, name) do
@@ -405,4 +463,6 @@ defmodule OpenIDConnect do
   defp http_client_options do
     Application.get_env(:openid_connect, :http_client_options, [])
   end
+
+  defp epoch, do: DateTime.utc_now() |> DateTime.to_unix()
 end
