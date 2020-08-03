@@ -89,12 +89,25 @@ defmodule OpenIDConnect.WorkerTest do
     assert expected_jwk == jwk
   end
 
+  test "worker doesn't die if dns fails" do
+    mock_nxdomain_error()
+
+    config = Application.get_env(:openid_connect, :providers)
+
+    assert {:ok, _} = start_worker(config)
+  end
+
   defp mock_http_requests do
     HTTPClientMock
     |> expect(:get, fn "https://accounts.google.com/.well-known/openid-configuration", _headers, _opts ->
       @google_document
     end)
     |> expect(:get, fn "https://www.googleapis.com/oauth2/v3/certs", _headers, _opts -> @google_certs end)
+  end
+
+  defp mock_nxdomain_error do
+    HTTPClientMock
+    |> expect(:get, fn _, _, _ -> {:error, %HTTPoison.Error{id: nil, reason: :nxdomain}} end)
   end
 
   defp start_worker(config) do
