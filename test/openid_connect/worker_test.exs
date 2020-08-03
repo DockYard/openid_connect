@@ -19,7 +19,7 @@ defmodule OpenIDConnect.WorkerTest do
 
     config = Application.get_env(:openid_connect, :providers)
 
-    {:ok, pid} = start_supervised({OpenIDConnect.Worker, config})
+    {:ok, pid} = start_worker(config)
 
     state = :sys.get_state(pid)
 
@@ -43,10 +43,9 @@ defmodule OpenIDConnect.WorkerTest do
 
   test "worker can respond to a call for the config" do
     mock_http_requests()
-
     config = Application.get_env(:openid_connect, :providers)
 
-    {:ok, pid} = start_supervised({OpenIDConnect.Worker, config})
+    {:ok, pid} = start_worker(config)
 
     google_config = GenServer.call(pid, {:config, :google})
 
@@ -58,8 +57,7 @@ defmodule OpenIDConnect.WorkerTest do
 
     config = Application.get_env(:openid_connect, :providers)
 
-    {:ok, pid} = start_supervised({OpenIDConnect.Worker, config})
-
+    {:ok, pid} = start_worker(config)
     discovery_document = GenServer.call(pid, {:discovery_document, :google})
 
     expected_document =
@@ -77,7 +75,7 @@ defmodule OpenIDConnect.WorkerTest do
 
     config = Application.get_env(:openid_connect, :providers)
 
-    {:ok, pid} = start_supervised({OpenIDConnect.Worker, config})
+    {:ok, pid} = start_worker(config)
 
     jwk = GenServer.call(pid, {:jwk, :google})
 
@@ -97,5 +95,11 @@ defmodule OpenIDConnect.WorkerTest do
       @google_document
     end)
     |> expect(:get, fn "https://www.googleapis.com/oauth2/v3/certs", _headers, _opts -> @google_certs end)
+  end
+
+  defp start_worker(config) do
+    {:ok, pid} = start_supervised({OpenIDConnect.Worker, config})
+    Process.sleep(10) # allow :update_documents to run
+    {:ok, pid}
   end
 end
