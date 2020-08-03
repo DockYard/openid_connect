@@ -98,8 +98,8 @@ defmodule OpenIDConnect.WorkerTest do
   end
 
   defp start_worker(config) do
-    {:ok, pid} = start_supervised({OpenIDConnect.Worker, config})
-    Process.sleep(10) # allow :update_documents to run
+    {:ok, pid} = start_supervised({OpenIDConnect.Worker, {config, self()}})
+    assert_receive :ready
     {:ok, pid}
   end
 end

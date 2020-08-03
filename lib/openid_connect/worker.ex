@@ -11,20 +11,30 @@ defmodule OpenIDConnect.Worker do
 
   require Logger
 
-  def start_link(provider_configs, name \\ :openid_connect) do
-    GenServer.start_link(__MODULE__, provider_configs, name: name)
+  def start_link(options, name \\ :openid_connect)
+
+  def start_link({provider_configs, notify_pid}, name) do
+    GenServer.start_link(__MODULE__, {provider_configs, notify_pid}, name: name)
   end
 
-  def init(:ignore) do
+  def start_link(provider_configs, name) do
+    start_link({provider_configs, nil}, name)
+  end
+
+  def init({:ignore, _pid}) do
     :ignore
   end
 
-  def init(provider_configs) do
+  def init({provider_configs, notify_pid}) do
     state =
       Enum.into(provider_configs, %{}, fn {provider, config} ->
         Process.send_after(self(), {:update_documents, provider}, 0)
         {provider, %{config: config, documents: nil}}
       end)
+
+    unless is_nil(notify_pid) do
+      Process.send_after(self(), {:notify, notify_pid}, 1)
+    end
 
     {:ok, state}
   end
@@ -42,6 +52,11 @@ defmodule OpenIDConnect.Worker do
   def handle_call({:config, provider}, _from, state) do
     config = get_in(state, [provider, :config])
     {:reply, config, state}
+  end
+
+  def handle_info({:notify, pid}, state) do
+    Process.send(pid, :ready, [])
+    {:noreply, state}
   end
 
   def handle_info({:update_documents, provider}, state) do
