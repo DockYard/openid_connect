@@ -69,7 +69,7 @@ defmodule OpenIDConnect.WorkerTest do
       |> Jason.decode!()
       |> OpenIDConnect.normalize_discovery_document()
 
-    assert expected_document == discovery_document
+    assert {:ok, expected_document} == discovery_document
   end
 
   test "worker can respond to a call for a provider's jwk" do
@@ -88,7 +88,7 @@ defmodule OpenIDConnect.WorkerTest do
       |> Jason.decode!()
       |> JOSE.JWK.from()
 
-    assert expected_jwk == jwk
+    assert {:ok, expected_jwk} == jwk
   end
 
   defp mock_http_requests do

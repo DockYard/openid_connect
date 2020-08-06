@@ -27,11 +27,11 @@ defmodule OpenIDConnect.MockWorker do
   end
 
   def handle_call({:discovery_document, :google}, _from, state) do
-    {:reply, Map.get(state, :document), state}
+    {:reply, {:ok, Map.get(state, :document)}, state}
   end
 
   def handle_call({:jwk, :google}, _from, state) do
-    {:reply, Map.get(state, :jwk), state}
+    {:reply, {:ok, Map.get(state, :jwk)}, state}
   end
 
   def handle_call({:config, :google}, _from, state) do
