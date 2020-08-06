@@ -40,8 +40,8 @@ defmodule OpenIDConnect.Worker do
             put_in(state, [provider, :documents], documents)
             {:reply, {:ok, discovery_document}, state}
 
-          error ->
-            {:reply, error, state}
+          {:error, :update_documents, reason}  ->
+            {:reply, {:error, :discovery_document, reason} , state}
         end
 
       discovery_document ->
@@ -58,8 +58,8 @@ defmodule OpenIDConnect.Worker do
             put_in(state, [provider, :documents], documents)
             {:reply, {:ok, jwk}, state}
 
-          error ->
-            {:reply, error, state}
+          {:error, :update_documents, reason} ->
+            {:reply,  {:error, :jwk, reason}, state}
         end
 
       jwk ->
@@ -96,9 +96,9 @@ defmodule OpenIDConnect.Worker do
 
         {:ok, documents}
 
-      error ->
+      {:error, :update_documents, reason} ->
         Process.send_after(self(), {:update_documents, provider}, @refresh_time)
-        error
+        {:error, :update_documents, reason}
     end
   end
 

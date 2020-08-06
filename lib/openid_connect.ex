@@ -73,7 +73,7 @@ defmodule OpenIDConnect do
           remaining_lifetime: integer | nil
         }
 
-  @spec authorization_uri(provider, params, name) :: uri
+  @spec authorization_uri(provider, params, name) :: uri | error(:authorization_uri)
   @doc """
   Builds the authorization URI according to the spec in the providers discovery document
 
@@ -86,23 +86,31 @@ defmodule OpenIDConnect do
   > OpenID Connect provider should have more information on this topic.
   """
   def authorization_uri(provider, params \\ %{}, name \\ :openid_connect) do
-    document = discovery_document(provider, name)
     config = config(provider, name)
 
-    uri = Map.get(document, "authorization_endpoint")
+    with {:ok, document} <- discovery_document(provider, name),
+         {:ok, response_type} <- response_type(provider, config, name) do
+      uri = Map.get(document, "authorization_endpoint")
 
-    params =
-      Map.merge(
-        %{
-          client_id: client_id(config),
-          redirect_uri: redirect_uri(config),
-          response_type: response_type(provider, config, name),
-          scope: normalize_scope(provider, config[:scope])
-        },
-        params
-      )
+      params =
+        Map.merge(
+          %{
+            client_id: client_id(config),
+            redirect_uri: redirect_uri(config),
+            response_type: response_type,
+            scope: normalize_scope(provider, config[:scope])
+          },
+          params
+        )
 
-    build_uri(uri, params)
+      build_uri(uri, params)
+    else
+      {:error, :discovery_document, reason} ->
+        {:error, :authorization_uri, reason}
+
+      {:error, :response_type, reason} ->
+        {:error, :authorization_uri, reason}
+    end
   end
 
   @spec fetch_tokens(provider, params, name) :: success(map) | error(:fetch_tokens)
@@ -124,7 +132,6 @@ defmodule OpenIDConnect do
   end
 
   def fetch_tokens(provider, params, name) do
-    uri = access_token_uri(provider, name)
     config = config(provider, name)
 
     form_body =
@@ -141,7 +148,8 @@ defmodule OpenIDConnect do
 
     headers = [{"Content-Type", "application/x-www-form-urlencoded"}]
 
-    with {:ok, %HTTPoison.Response{status_code: status_code} = resp} when status_code in 200..299 <-
+    with {:ok, uri} <- access_token_uri(provider, name),
+         {:ok, %HTTPoison.Response{status_code: status_code} = resp} when status_code in 200..299 <-
            http_client().post(uri, {:form, form_body}, headers, http_client_options()),
          {:ok, json} <- Jason.decode(resp.body),
          {:ok, json} <- assert_json(json) do
@@ -149,6 +157,7 @@ defmodule OpenIDConnect do
     else
       {:ok, resp} -> {:error, :fetch_tokens, resp}
       {:error, reason} -> {:error, :fetch_tokens, reason}
+      {:error, :access_token_uri, reason} -> {:error, :fetch_tokens, reason}
     end
   end
 
@@ -160,9 +169,8 @@ defmodule OpenIDConnect do
   JSON Web Key (JWK)
   """
   def verify(provider, jwt, name \\ :openid_connect) do
-    jwk = jwk(provider, name)
-
-    with {:ok, protected} <- peek_protected(jwt),
+    with {:ok, jwk} <- jwk(provider, name),
+         {:ok, protected} <- peek_protected(jwt),
          {:ok, decoded_protected} <- Jason.decode(protected),
          {:ok, token_alg} <- Map.fetch(decoded_protected, "alg"),
          {true, claims, _jwk} <- do_verify(jwk, token_alg, jwt) do
@@ -179,6 +187,10 @@ defmodule OpenIDConnect do
 
       {false, _claims, _jwk} ->
         {:error, :verify, "verification failed"}
+
+      {:error, :jwk, reason} ->
+          # reason may be %HTTPPoison.Error{}, string, etc.
+          {:error, :verify, reason}
 
       _ ->
         {:error, :verify, "verification error"}
@@ -267,13 +279,11 @@ defmodule OpenIDConnect do
   end
 
   defp discovery_document(provider, name) do
-    {:ok, doc} = GenServer.call(name, {:discovery_document, provider})
-    doc
+    GenServer.call(name, {:discovery_document, provider})
   end
 
   defp jwk(provider, name) do
-    {:ok, jwk} = GenServer.call(name, {:jwk, provider})
-    jwk
+    GenServer.call(name, {:jwk, provider})
   end
 
   defp config(provider, name) do
@@ -281,7 +291,13 @@ defmodule OpenIDConnect do
   end
 
   defp access_token_uri(provider, name) do
-    Map.get(discovery_document(provider, name), "token_endpoint")
+    case discovery_document(provider, name) do
+      {:ok, doc} ->
+        {:ok, Map.get(doc, "token_endpoint")}
+
+      {:error, :discovery_document, reason} ->
+        {:error, :access_token_uri, reason}
+    end
   end
 
   defp client_id(config) do
@@ -302,19 +318,23 @@ defmodule OpenIDConnect do
       |> Keyword.get(:response_type)
       |> normalize_response_type(provider)
 
-    response_types_supported = response_types_supported(provider, name)
+    case response_types_supported(provider, name) do
+      {:ok, response_types_supported} ->
+        cond do
+          response_type in response_types_supported ->
+            {:ok, response_type}
 
-    cond do
-      response_type in response_types_supported ->
-        response_type
+          true ->
+            raise ArgumentError,
+              message: """
+              Requested response type (#{response_type}) not supported by provider (#{provider}).
+              Supported types:
+              #{Enum.join(response_types_supported, "\n")}
+              """
+        end
 
-      true ->
-        raise ArgumentError,
-          message: """
-          Requested response type (#{response_type}) not supported by provider (#{provider}).
-          Supported types:
-          #{Enum.join(response_types_supported, "\n")}
-          """
+      {:error, :response_types_supported, reason} ->
+        {:error, :response_type, reason}
     end
   end
 
@@ -336,9 +356,13 @@ defmodule OpenIDConnect do
   end
 
   defp response_types_supported(provider, name) do
-    provider
-    |> discovery_document(name)
-    |> Map.get("response_types_supported")
+    case discovery_document(provider, name) do
+      {:ok, doc} ->
+        {:ok, Map.get(doc, "response_types_supported")}
+
+      {:error, :discovery_document, reason} ->
+        {:error, :response_types_supported, reason}
+    end
   end
 
   defp discovery_document_uri(config) do
