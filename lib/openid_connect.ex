@@ -127,19 +127,32 @@ defmodule OpenIDConnect do
     uri = access_token_uri(provider, name)
     config = config(provider, name)
 
+    {client_id, client_secret} =
+      if is_binary(params[:client_id]) && is_binary(params[:client_secret]) do
+        {params[:client_id], params[:client_secret]}
+      else
+        {client_id(config), client_secret(config)}
+      end
+
+    {auth_form_data, auth_headers} =
+      case token_endpoint_auth_method(config) do
+        "client_secret_post" ->
+          {%{client_id: client_id, client_secret: client_secret}, []}
+
+        "client_secret_basic" ->
+          {%{}, [{"Authorization", "Basic #{Base.encode64("#{client_id}:#{client_secret}")}"}]}
+      end
+
     form_body =
-      Map.merge(
-        %{
-          client_id: client_id(config),
-          client_secret: client_secret(config),
-          grant_type: "authorization_code",
-          redirect_uri: redirect_uri(config)
-        },
-        params
-      )
+      %{
+        grant_type: "authorization_code",
+        redirect_uri: redirect_uri(config)
+      }
+      |> Map.merge(auth_form_data)
+      |> Map.merge(Map.drop(params, [:client_id, :client_secret]))
       |> Map.to_list()
 
-    headers = [{"Content-Type", "application/x-www-form-urlencoded"}]
+    headers = [{"Content-Type", "application/x-www-form-urlencoded"} | auth_headers]
 
     with {:ok, %HTTPoison.Response{status_code: status_code} = resp} when status_code in 200..299 <-
            http_client().post(uri, {:form, form_body}, headers, http_client_options()),
@@ -288,6 +301,10 @@ defmodule OpenIDConnect do
 
   defp client_secret(config) do
     Keyword.get(config, :client_secret)
+  end
+
+  defp token_endpoint_auth_method(config) do
+    Keyword.get(config, :token_endpoint_auth_method, "client_secret_post")
   end
 
   defp redirect_uri(config) do
