@@ -14,32 +14,35 @@ defmodule OpenIDConnect.MockWorker do
               |> JOSE.JWK.from()
 
   def init(_) do
-    config =
+    state =
       Application.get_env(:openid_connect, :providers)
-      |> Keyword.get(:google)
+      |> Enum.into(%{}, fn {provider, config} ->
+        documents = %{
+          discovery_document: @google_document,
+          jwk: @google_jwk
+        }
 
-    {:ok,
-     %{
-       config: config,
-       jwk: @google_jwk,
-       document: @google_document
-     }}
+        {provider, %{config: config, documents: documents}}
+      end)
+
+    {:ok, state}
   end
 
-  def handle_call({:discovery_document, :google}, _from, state) do
-    {:reply, Map.get(state, :document), state}
+  def handle_call({:discovery_document, provider}, _from, state) do
+    {:reply, get_in(state, [provider, :documents, :discovery_document]), state}
   end
 
-  def handle_call({:jwk, :google}, _from, state) do
-    {:reply, Map.get(state, :jwk), state}
+  def handle_call({:jwk, provider}, _from, state) do
+    {:reply, get_in(state, [provider, :documents, :jwk]), state}
   end
 
-  def handle_call({:config, :google}, _from, state) do
-    {:reply, Map.get(state, :config), state}
+  def handle_call({:config, provider}, _from, state) do
+    {:reply, get_in(state, [provider, :config]), state}
   end
 
-  def handle_call({:put, key, value}, _from, state) do
-    {:reply, :ok, Map.put(state, key, value)}
+  def handle_call({:put, provider, key, value}, _from, state) do
+    state = put_in(state, [provider, :documents, key], value)
+    {:reply, :ok, state}
   end
 
   def handle_call(_anything, _from, _state) do
