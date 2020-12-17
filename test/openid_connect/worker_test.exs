@@ -14,7 +14,7 @@ defmodule OpenIDConnect.WorkerTest do
     :ignore = OpenIDConnect.Worker.start_link(:ignore)
   end
 
-  test "starting with a single provider will retrieve the necessary documents" do
+  test "starting with a all providers will retrieve the necessary documents" do
     mock_http_requests()
 
     config = Application.get_env(:openid_connect, :providers)
@@ -23,7 +23,7 @@ defmodule OpenIDConnect.WorkerTest do
 
     state = :sys.get_state(pid)
 
-    expected_document =
+    expected_doc =
       @google_document
       |> elem(1)
       |> Map.get(:body)
@@ -37,8 +37,10 @@ defmodule OpenIDConnect.WorkerTest do
       |> Jason.decode!()
       |> JOSE.JWK.from()
 
-    assert expected_document == get_in(state, [:google, :documents, :discovery_document])
+    assert expected_doc == get_in(state, [:google, :documents, :discovery_document])
     assert expected_jwk == get_in(state, [:google, :documents, :jwk])
+    assert expected_doc == get_in(state, [:google_auth_basic, :documents, :discovery_document])
+    assert expected_jwk == get_in(state, [:google_auth_basic, :documents, :jwk])
   end
 
   test "worker can respond to a call for the config" do
@@ -92,10 +94,13 @@ defmodule OpenIDConnect.WorkerTest do
   end
 
   defp mock_http_requests do
+    discovery_document_uri = "https://accounts.google.com/.well-known/openid-configuration"
+    jwks_uri = "https://www.googleapis.com/oauth2/v3/certs"
+
     HTTPClientMock
-    |> expect(:get, fn "https://accounts.google.com/.well-known/openid-configuration", _headers, _opts ->
-      @google_document
-    end)
-    |> expect(:get, fn "https://www.googleapis.com/oauth2/v3/certs", _headers, _opts -> @google_certs end)
+    |> expect(:get, fn ^discovery_document_uri, _headers, _opts -> @google_document end)
+    |> expect(:get, fn ^jwks_uri, _headers, _opts -> @google_certs end)
+    |> expect(:get, fn ^discovery_document_uri, _headers, _opts -> @google_document end)
+    |> expect(:get, fn ^jwks_uri, _headers, _opts -> @google_certs end)
   end
 end
