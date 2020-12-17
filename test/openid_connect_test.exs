@@ -8,6 +8,7 @@ defmodule OpenIDConnectTest do
 
   @google_document Fixtures.load(:google, :discovery_document)
   @google_certs Fixtures.load(:google, :certs)
+  @google_userinfo Fixtures.load(:google, :userinfo)
 
   alias OpenIDConnect.{HTTPClientMock, MockWorker}
 
@@ -520,6 +521,35 @@ defmodule OpenIDConnectTest do
 
         result = OpenIDConnect.verify(:google, token <> " :)")
         assert result == {:error, :verify, "verification error"}
+      after
+        GenServer.stop(pid)
+      end
+    end
+  end
+
+  describe "fetch userinfo" do
+    test "when successful" do
+      {:ok, pid} = GenServer.start_link(MockWorker, [], name: :openid_connect)
+
+      access_token = "mF_9.B5f-4.1JqM"
+      headers = [{"Authorization", "Bearer #{access_token}"}]
+
+      expected_userinfo =
+        @google_userinfo
+        |> elem(1)
+        |> Map.get(:body)
+        |> Jason.decode!()
+
+      try do
+        expect(HTTPClientMock, :get, fn "https://www.googleapis.com/oauth2/v3/userinfo",
+                                        ^headers,
+                                        _opts ->
+          @google_userinfo
+        end)
+
+        {:ok, body} = OpenIDConnect.fetch_userinfo(:google, access_token)
+
+        assert expected_userinfo == body
       after
         GenServer.stop(pid)
       end
