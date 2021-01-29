@@ -49,7 +49,10 @@ Next add the `OpenIDConnect.Worker` to your app's supervisor along with your pro
 ```elixir
 children =
   [
-    worker(OpenIDConnect.Worker, [Application.get_env(:my_app, :openid_connect_providers)]),
+    {
+      OpenIDConnect.Worker,
+      Application.get_env(:my_app, :openid_connect_providers)
+    },
   ]
 
 opts = [strategy: :one_for_one, name: MyApp.Supervisor]
