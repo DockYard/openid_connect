@@ -7,7 +7,7 @@ defmodule OpenIDConnect.Mixfile do
     [
       app: :openid_connect,
       version: @version,
-      elixir: "~> 1.7",
+      elixir: "~> 1.5",
       build_embedded: Mix.env() == :prod,
       start_permanent: Mix.env() == :prod,
       elixirc_paths: elixirc_paths(Mix.env()),
