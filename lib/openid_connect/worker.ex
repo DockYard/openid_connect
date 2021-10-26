@@ -25,9 +25,19 @@ defmodule OpenIDConnect.Worker do
     # to retrieve the configs, and the worker can fail at that point, to be
     # handled by its supervisor however it chooses (e.g. try restarting within
     # X seconds, or just treat it as a temporary worker - up to the application).
+    #
+    # To make it easy to retry startup up to X times in a supervisor, we
+    # allow an initialization delay to be configured by the application.
+    delay_ms = Application.get_env(:openid_connect, :initialization_delay_ms, 0)
     state =
       Enum.into(provider_configs, %{}, fn {provider, config} ->
-        Process.send(self(), {:update_documents, provider}, [])
+        case delay_ms do
+          # If delay is 0, we in fact want to send immediately (not semantically
+          # the same as sending after 0ms which could give other processes the
+          # opportunity to put stuff on our message queue).
+          0 -> Process.send(self(), {:update_documents, provider}, [])
+          _ -> Process.send_after(self(), {:update_documents, provider}, delay_ms)
+        end
         {provider, %{config: config, documents: %{}}}
       end)
 
