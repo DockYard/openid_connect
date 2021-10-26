@@ -18,10 +18,17 @@ defmodule OpenIDConnect.Worker do
   end
 
   def init(provider_configs) do
+    # We do not actually fetch the documents at this point, since failing at
+    # init time can prevent an entire Elixir application from starting.
+    #
+    # However, the first messages this process receives will cause it to try
+    # to retrieve the configs, and the worker can fail at that point, to be
+    # handled by its supervisor however it chooses (e.g. try restarting within
+    # X seconds, or just treat it as a temporary worker - up to the application).
     state =
       Enum.into(provider_configs, %{}, fn {provider, config} ->
-        documents = update_documents(provider, config)
-        {provider, %{config: config, documents: documents}}
+        Process.send(self(), {:update_documents, provider}, [])
+        {provider, %{config: config, documents: %{}}}
       end)
 
     {:ok, state}
