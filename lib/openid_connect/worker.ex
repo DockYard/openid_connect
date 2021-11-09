@@ -16,8 +16,10 @@ defmodule OpenIDConnect.Worker do
   def init(:ignore) do
     :ignore
   end
-
-  def init(provider_configs) do
+  def init({:callback, get_config_fn}) do
+    init(get_config_fn.())
+  end
+  def init(provider_configs) when is_list(provider_configs) do
     # We do not actually fetch the documents at this point, since failing at
     # init time can prevent an entire Elixir application from starting.
     #

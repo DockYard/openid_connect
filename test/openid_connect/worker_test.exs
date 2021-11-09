@@ -53,6 +53,20 @@ defmodule OpenIDConnect.WorkerTest do
     assert get_in(config, [:google]) == google_config
   end
 
+  test "worker started using callback function can respond to a call for the config" do
+    mock_http_requests()
+
+    config = Application.get_env(:openid_connect, :providers)
+
+    {:ok, pid} = start_supervised({OpenIDConnect.Worker, {:callback, fn ->
+      config
+    end}})
+
+    google_config = GenServer.call(pid, {:config, :google})
+
+    assert get_in(config, [:google]) == google_config
+  end
+
   test "worker can respond to a call for a provider's discovery document" do
     mock_http_requests()
 
