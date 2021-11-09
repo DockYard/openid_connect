@@ -16,12 +16,13 @@ defmodule OpenIDConnect.Worker do
   def init(:ignore) do
     :ignore
   end
-  def init({:callback, get_config_fn}) do
-    init(get_config_fn.())
-  end
-  def init(provider_configs) when is_list(provider_configs) do
+  def init(provider_configs) do
     # We do not actually fetch the documents at this point, since failing at
-    # init time can prevent an entire Elixir application from starting.
+    # init time can prevent an entire Elixir application from starting, and
+    # for applications that e.g. want to load configuration from a database,
+    # it is better to defer initialization until after startup time, as
+    # we may be part of a supervision tree that is also initializing database
+    # connections.
     #
     # However, the first messages this process receives will cause it to try
     # to retrieve the configs, and the worker can fail at that point, to be
@@ -31,19 +32,14 @@ defmodule OpenIDConnect.Worker do
     # To make it easy to retry startup up to X times in a supervisor, we
     # allow an initialization delay to be configured by the application.
     delay_ms = Application.get_env(:openid_connect, :initialization_delay_ms, 0)
-    state =
-      Enum.into(provider_configs, %{}, fn {provider, config} ->
-        case delay_ms do
-          # If delay is 0, we in fact want to send immediately (not semantically
-          # the same as sending after 0ms which could give other processes the
-          # opportunity to put stuff on our message queue).
-          0 -> Process.send(self(), {:update_documents, provider}, [])
-          _ -> Process.send_after(self(), {:update_documents, provider}, delay_ms)
-        end
-        {provider, %{config: config, documents: %{}}}
-      end)
-
-    {:ok, state}
+    case delay_ms do
+      # If delay is 0, we in fact want to send immediately (not semantically
+      # the same as sending after 0ms which could give other processes the
+      # opportunity to put stuff on our message queue).
+      0 -> Process.send(self(), {:init, provider_configs}, [])
+      _ -> Process.send_after(self(), {:init, provider_configs}, delay_ms)
+    end
+    {:ok, %{}}
   end
 
   def handle_call({:discovery_document, provider}, _from, state) do
@@ -59,6 +55,21 @@ defmodule OpenIDConnect.Worker do
   def handle_call({:config, provider}, _from, state) do
     config = get_in(state, [provider, :config])
     {:reply, config, state}
+  end
+
+  def handle_info({:init, provider_configs}, _state) do
+    provider_configs = case provider_configs do
+      {:callback, get_config_fn} ->
+        get_config_fn.()
+      _ ->
+        provider_configs
+    end
+
+    state =
+      Enum.into(provider_configs, %{}, fn {provider, config} ->
+        {provider, %{config: config, documents: update_documents(provider, config)}}
+      end)
+    {:noreply, state}
   end
 
   def handle_info({:update_documents, provider}, state) do
