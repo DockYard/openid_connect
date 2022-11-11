@@ -107,7 +107,7 @@ defmodule OpenIDConnect do
 
   @spec end_session_uri(provider, params, name) :: uri
   @doc """
-  Builds the end session URI according to the speci in the providers discovery document
+  Builds the end session URI according to the spec in the providers discovery document
 
   The `params` option can be used to add additional query params to the URI
 
