@@ -105,6 +105,38 @@ defmodule OpenIDConnect do
     build_uri(uri, params)
   end
 
+  @spec end_session_uri(provider, params, name) :: uri
+  @doc """
+  Builds the end session URI according to the speci in the providers discovery document
+
+  The `params` option can be used to add additional query params to the URI
+
+  Example:
+    OpenIDConnect.end_session_uri(:azure, %{"client_id" => "5d4c39b4-660f-41c9-9a99-2a6a9c263f07"})
+
+  See more about this feature of the OpenID Connect spec:
+    https://openid.net/specs/openid-connect-rpinitiated-1_0.html
+
+  Each provider will typically require one or more of the supported query params, e.g. `id_token_hint` or
+  `client_id`. Read your provider's OIDC documentation to determine which one(s) you should add.
+  """
+  def end_session_uri(provider, params \\ %{}, name \\ :openid_connect) do
+    document = discovery_document(provider, name)
+    config = config(provider, name)
+
+    uri = Map.get(document, "end_session_endpoint")
+
+    params =
+      Map.merge(
+        %{
+          client_id: client_id(config)
+        },
+        params
+      )
+
+    build_uri(uri, params)
+  end
+
   @spec fetch_tokens(provider, params, name) :: success(map) | error(:fetch_tokens)
   @doc """
   Fetches the authentication tokens from the provider
