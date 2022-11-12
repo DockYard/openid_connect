@@ -7,7 +7,7 @@ defmodule OpenIDConnectTest do
   setup :set_jose_json_lib
 
   @google_document Fixtures.load(:google, :discovery_document)
-  @google_certs Fixtures.load(:google, :certs)
+  @google_certs Fixtures.load(:google, :jwks)
 
   alias OpenIDConnect.{HTTPClientMock, MockWorker}
 
@@ -68,7 +68,7 @@ defmodule OpenIDConnectTest do
 
       assert expected_document == discovery_document
       assert expected_jwk == jwk
-      assert remaining_lifetime == 16750
+      assert remaining_lifetime == 21527
     end
 
     test "fails during open id configuration document with HTTPoison error" do
@@ -252,7 +252,7 @@ defmodule OpenIDConnectTest do
       ]
 
       try do
-        expect(HTTPClientMock, :post, fn "https://www.googleapis.com/oauth2/v4/token",
+        expect(HTTPClientMock, :post, fn "https://oauth2.googleapis.com/token",
                                          {:form, ^form_body},
                                          _headers,
                                          _opts ->
@@ -282,7 +282,7 @@ defmodule OpenIDConnectTest do
       ]
 
       try do
-        expect(HTTPClientMock, :post, fn "https://www.googleapis.com/oauth2/v4/token",
+        expect(HTTPClientMock, :post, fn "https://oauth2.googleapis.com/token",
                                          {:form, ^form_body},
                                          _headers,
                                          _opts ->
@@ -315,7 +315,7 @@ defmodule OpenIDConnectTest do
       ]
 
       try do
-        expect(HTTPClientMock, :post, fn "https://www.googleapis.com/oauth2/v4/token",
+        expect(HTTPClientMock, :post, fn "https://oauth2.googleapis.com/token",
                                          {:form, ^form_body},
                                          _headers,
                                          _opts ->
@@ -336,7 +336,7 @@ defmodule OpenIDConnectTest do
       http_error = %HTTPoison.Error{reason: :nxdomain}
 
       try do
-        expect(HTTPClientMock, :post, fn "https://www.googleapis.com/oauth2/v4/token",
+        expect(HTTPClientMock, :post, fn "https://oauth2.googleapis.com/token",
                                          {:form, _form_body},
                                          _headers,
                                          _opts ->
@@ -357,7 +357,7 @@ defmodule OpenIDConnectTest do
       http_error = %HTTPoison.Response{status_code: 404}
 
       try do
-        expect(HTTPClientMock, :post, fn "https://www.googleapis.com/oauth2/v4/token",
+        expect(HTTPClientMock, :post, fn "https://oauth2.googleapis.com/token",
                                          {:form, _form_body},
                                          _headers,
                                          _opts ->
@@ -378,7 +378,7 @@ defmodule OpenIDConnectTest do
       {:ok, pid} = GenServer.start_link(MockWorker, [], name: :openid_connect)
 
       try do
-        {jwk, []} = Code.eval_file("test/fixtures/rsa/jwk1.exs")
+        {jwk, []} = Code.eval_file("test/fixtures/jwks/jwk1.exs")
         :ok = GenServer.call(pid, {:put, :jwk, JOSE.JWK.from(jwk)})
 
         claims = %{"email" => "brian@example.com"}
@@ -400,7 +400,7 @@ defmodule OpenIDConnectTest do
       {:ok, pid} = GenServer.start_link(MockWorker, [], name: :openid_connect)
 
       try do
-        {jwk, []} = Code.eval_file("test/fixtures/rsa/jwks.exs")
+        {jwk, []} = Code.eval_file("test/fixtures/jwks/jwks.exs")
         :ok = GenServer.call(pid, {:put, :jwk, JOSE.JWK.from(jwk)})
 
         claims = %{"email" => "brian@example.com"}
@@ -424,7 +424,7 @@ defmodule OpenIDConnectTest do
       {:ok, pid} = GenServer.start_link(MockWorker, [], name: :openid_connect)
 
       try do
-        {jwk, []} = Code.eval_file("test/fixtures/rsa/jwk1.exs")
+        {jwk, []} = Code.eval_file("test/fixtures/jwks/jwk1.exs")
         :ok = GenServer.call(pid, {:put, :jwk, JOSE.JWK.from(jwk)})
 
         result = OpenIDConnect.verify(:google, "fail")
@@ -438,7 +438,7 @@ defmodule OpenIDConnectTest do
       {:ok, pid} = GenServer.start_link(MockWorker, [], name: :openid_connect)
 
       try do
-        {jwk, []} = Code.eval_file("test/fixtures/rsa/jwk1.exs")
+        {jwk, []} = Code.eval_file("test/fixtures/jwks/jwk1.exs")
         :ok = GenServer.call(pid, {:put, :jwk, JOSE.JWK.from(jwk)})
 
         token =
@@ -461,7 +461,7 @@ defmodule OpenIDConnectTest do
       {:ok, pid} = GenServer.start_link(MockWorker, [], name: :openid_connect)
 
       try do
-        {jwk, []} = Code.eval_file("test/fixtures/rsa/jwk1.exs")
+        {jwk, []} = Code.eval_file("test/fixtures/jwks/jwk1.exs")
         :ok = GenServer.call(pid, {:put, :jwk, JOSE.JWK.from(jwk)})
 
         token =
@@ -484,8 +484,8 @@ defmodule OpenIDConnectTest do
       {:ok, pid} = GenServer.start_link(MockWorker, [], name: :openid_connect)
 
       try do
-        {jwk1, []} = Code.eval_file("test/fixtures/rsa/jwk1.exs")
-        {jwk2, []} = Code.eval_file("test/fixtures/rsa/jwk2.exs")
+        {jwk1, []} = Code.eval_file("test/fixtures/jwks/jwk1.exs")
+        {jwk2, []} = Code.eval_file("test/fixtures/jwks/jwk2.exs")
         :ok = GenServer.call(pid, {:put, :jwk, JOSE.JWK.from(jwk1)})
 
         claims = %{"email" => "brian@example.com"}
@@ -507,7 +507,7 @@ defmodule OpenIDConnectTest do
       {:ok, pid} = GenServer.start_link(MockWorker, [], name: :openid_connect)
 
       try do
-        {jwk, []} = Code.eval_file("test/fixtures/rsa/jwk1.exs")
+        {jwk, []} = Code.eval_file("test/fixtures/jwks/jwk1.exs")
         :ok = GenServer.call(pid, {:put, :jwk, JOSE.JWK.from(jwk)})
 
         claims = %{"email" => "brian@example.com"}
