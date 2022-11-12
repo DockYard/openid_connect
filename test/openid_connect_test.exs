@@ -16,7 +16,7 @@ defmodule OpenIDConnectTest do
 
     app_version = "#{Application.spec(app, :vsn)}"
     readme = File.read!("README.md")
-    [_, readme_versions] = Regex.run(~r/{:#{app}, "(.+)"}/, readme)
+    [_, readme_versions] = Regex.run(~r/{:#{app}, github: "(.+)"}/, readme)
 
     assert Version.match?(
              app_version,
