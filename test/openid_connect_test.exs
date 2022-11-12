@@ -11,12 +11,14 @@ defmodule OpenIDConnectTest do
 
   alias OpenIDConnect.{HTTPClientMock, MockWorker}
 
+  # XXX: Unskip this test when we're back on Hex
+  @tag :skip
   test "README install version check" do
     app = :openid_connect
 
     app_version = "#{Application.spec(app, :vsn)}"
     readme = File.read!("README.md")
-    [_, readme_versions] = Regex.run(~r/{:#{app}, github: "(.+)"}/, readme)
+    [_, readme_versions] = Regex.run(~r/{:#{app}, "(.+)"}/, readme)
 
     assert Version.match?(
              app_version,
