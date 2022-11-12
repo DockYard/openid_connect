@@ -267,11 +267,9 @@ defmodule OpenIDConnect do
   end
 
   defp peek_protected(jwt) do
-    try do
-      {:ok, JOSE.JWS.peek_protected(jwt)}
-    rescue
-      _ -> {:error, :peek_protected}
-    end
+    {:ok, JOSE.JWS.peek_protected(jwt)}
+  rescue
+    _ -> {:error, :peek_protected}
   end
 
   defp do_verify(%JOSE.JWK{keys: {:jose_jwk_set, jwks}}, token_alg, jwt) do
@@ -290,12 +288,10 @@ defmodule OpenIDConnect do
     do: JOSE.JWS.verify_strict(jwk, [token_alg], jwt)
 
   defp from_certs(certs) do
-    try do
-      {:ok, JOSE.JWK.from(certs)}
-    rescue
-      _ ->
-        {:error, "certificates bad format"}
-    end
+    {:ok, JOSE.JWK.from(certs)}
+  rescue
+    _ ->
+      {:error, "certificates bad format"}
   end
 
   defp discovery_document(provider, name) do
@@ -334,17 +330,15 @@ defmodule OpenIDConnect do
 
     response_types_supported = response_types_supported(provider, name)
 
-    cond do
-      response_type in response_types_supported ->
-        response_type
-
-      true ->
-        raise ArgumentError,
-          message: """
-          Requested response type (#{response_type}) not supported by provider (#{provider}).
-          Supported types:
-          #{Enum.join(response_types_supported, "\n")}
-          """
+    if response_type in response_types_supported do
+      response_type
+    else
+      raise ArgumentError,
+        message: """
+        Requested response type (#{response_type}) not supported by provider (#{provider}).
+        Supported types:
+        #{Enum.join(response_types_supported, "\n")}
+        """
     end
   end
 
@@ -400,7 +394,7 @@ defmodule OpenIDConnect do
 
   @spec remaining_lifetime([{String.t(), String.t()}]) :: integer | nil
   defp remaining_lifetime(headers) do
-    with headers = Enum.into(headers, %{}),
+    with headers <- Enum.into(headers, %{}),
          {:ok, max_age} <- find_max_age(headers),
          {:ok, age} <- find_age(headers) do
       max_age - age

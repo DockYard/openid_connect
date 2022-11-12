@@ -1,4 +1,8 @@
 defmodule JasonEncoder do
+  @moduledoc """
+  Convenience module to pass to JOSE
+  """
+
   def encode(term) do
     Jason.encode!(term)
   end

@@ -1,6 +1,27 @@
 %HTTPoison.Response{
   status_code: 200,
-  body: "{\"keys\":[{\"kty\":\"RSA\",\"alg\":\"RS256\",\"kid\":\"sljES1Bh0VMGwUpPfFunCVAzvLRdea7WluQfeV6zWTQ\",\"use\":\"sig\",\"e\":\"AQAB\",\"n\":\"7d7C4UL4HujzZesiEOtQUZcusHzBoUJVJXarHz0x9vMzQ1PYaGwivWJimnBHQXw6r1T05PQxOik9NnxvtPF7snPxVzDtDgrqzjd3WoYWmFiWrJz1vwebiioeFQKla7GkxfoE4cNFlIzi-i9y76zWwR3R3u0hUzHyY5XZcIBWnnInYKFACCNES7lqKu4qE3XTluJiP-WvDo79iFM67V2ZDowOWPLKoJQI0CA9l1Nkklaq32bjtMD9njl1Pl1KOKqZNyn1RzkmG0V15CYR959EEU7_Pl1LrrxGcgS-wafoyKILaJxEyeMWd3_SM0_anSAVvyUA46PYefcdEuURp-r4vQ\"},{\"kty\":\"RSA\",\"alg\":\"RS256\",\"kid\":\"TgT2Cxt-D-sVMlgTm3On7DLee8ljXgYhdzkrPkTc4sY\",\"use\":\"sig\",\"e\":\"AQAB\",\"n\":\"3VQaNpbZ67tiVkNqLF4j5skeys9D0Vzfu8NpOE8ZRVBmzLXa-FZ65cm6IGObMHhyDEBT4MTD3DLTRufVaiUbGcvrx5qee9eV_U3AwxSkRBEuHi-4HvUGkbvvXJpaoIHrNONZ_qLnL-GQm-kWTr3BaaRQ8lmMQjh3G4aCzzsFCpMT2HEe1GwCWDGTS_tDGt7oyueOtaPYFP3YLW7n8GW0-nVdiFxXYU0F-l9BF95YgYSut18r6xKk4EfHY4VNC6Y-qbldyEJ0iGdUT5sa07d7q6ocwDRO6iB07j65v43-A-H5vcew9N1JvFXXiJZ4Qn2UhzAGgUm6-Exr6fOko0W3zw\"}]}",
+  body: %{
+    "keys" => [
+      %{
+        "alg" => "RS256",
+        "e" => "AQAB",
+        "kid" => "sljES1Bh0VMGwUpPfFunCVAzvLRdea7WluQfeV6zWTQ",
+        "kty" => "RSA",
+        "n" =>
+          "7d7C4UL4HujzZesiEOtQUZcusHzBoUJVJXarHz0x9vMzQ1PYaGwivWJimnBHQXw6r1T05PQxOik9NnxvtPF7snPxVzDtDgrqzjd3WoYWmFiWrJz1vwebiioeFQKla7GkxfoE4cNFlIzi-i9y76zWwR3R3u0hUzHyY5XZcIBWnnInYKFACCNES7lqKu4qE3XTluJiP-WvDo79iFM67V2ZDowOWPLKoJQI0CA9l1Nkklaq32bjtMD9njl1Pl1KOKqZNyn1RzkmG0V15CYR959EEU7_Pl1LrrxGcgS-wafoyKILaJxEyeMWd3_SM0_anSAVvyUA46PYefcdEuURp-r4vQ",
+        "use" => "sig"
+      },
+      %{
+        "alg" => "RS256",
+        "e" => "AQAB",
+        "kid" => "TgT2Cxt-D-sVMlgTm3On7DLee8ljXgYhdzkrPkTc4sY",
+        "kty" => "RSA",
+        "n" =>
+          "3VQaNpbZ67tiVkNqLF4j5skeys9D0Vzfu8NpOE8ZRVBmzLXa-FZ65cm6IGObMHhyDEBT4MTD3DLTRufVaiUbGcvrx5qee9eV_U3AwxSkRBEuHi-4HvUGkbvvXJpaoIHrNONZ_qLnL-GQm-kWTr3BaaRQ8lmMQjh3G4aCzzsFCpMT2HEe1GwCWDGTS_tDGt7oyueOtaPYFP3YLW7n8GW0-nVdiFxXYU0F-l9BF95YgYSut18r6xKk4EfHY4VNC6Y-qbldyEJ0iGdUT5sa07d7q6ocwDRO6iB07j65v43-A-H5vcew9N1JvFXXiJZ4Qn2UhzAGgUm6-Exr6fOko0W3zw",
+        "use" => "sig"
+      }
+    ]
+  },
   headers: [
     {"Date", "Sat, 12 Nov 2022 19:41:02 GMT"},
     {"Content-Type", "application/json"},
