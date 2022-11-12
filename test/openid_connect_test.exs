@@ -68,7 +68,7 @@ defmodule OpenIDConnectTest do
 
       assert expected_document == discovery_document
       assert expected_jwk == jwk
-      assert remaining_lifetime == 21527
+      assert remaining_lifetime == 21_527
     end
 
     test "fails during open id configuration document with HTTPoison error" do
@@ -447,8 +447,7 @@ defmodule OpenIDConnectTest do
             "fail",
             "fail"
           ]
-          |> Enum.map(fn header -> Base.encode64(header) end)
-          |> Enum.join(".")
+          |> Enum.map_join(".", fn header -> Base.encode64(header) end)
 
         result = OpenIDConnect.verify(:google, token)
         assert result == {:error, :verify, "token claims did not contain a JSON payload"}
@@ -470,8 +469,7 @@ defmodule OpenIDConnectTest do
             "{}",
             "{}"
           ]
-          |> Enum.map(fn header -> Base.encode64(header) end)
-          |> Enum.join(".")
+          |> Enum.map_join(".", fn header -> Base.encode64(header) end)
 
         result = OpenIDConnect.verify(:google, token)
         assert result == {:error, :verify, "no `alg` found in token"}
