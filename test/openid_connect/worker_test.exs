@@ -6,7 +6,7 @@ defmodule OpenIDConnect.WorkerTest do
   setup :verify_on_exit!
 
   @google_document Fixtures.load(:google, :discovery_document)
-  @google_certs Fixtures.load(:google, :certs)
+  @google_certs Fixtures.load(:google, :jwks)
 
   alias OpenIDConnect.{HTTPClientMock}
 
