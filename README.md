@@ -1,20 +1,26 @@
 # OpenIDConnect
 
-Client library for consuming and working with OpenID Connect Providers
+Firezone's fork of [DockYard's client library](https://github.com/dockyard/openid_connect) for consuming and working with OpenID Connect Providers.
 
-**[OpenIDConnect is built and maintained by DockYard, contact us for expert Elixir and Phoenix consulting](https://dockyard.com/phoenix-consulting)**.
+**[OpenIDConnect is originally built and maintained by DockYard, contact us for expert Elixir and Phoenix consulting](https://dockyard.com/phoenix-consulting)**.
+
+**This fork is maintained by the Firezone team**.
 
 ## Installation
 
-[Available in Hex](https://hex.pm/packages/openid_connect), the package can be installed as:
+~~[Available in Hex](https://hex.pm/packages/openid_connect), the package can be installed as:~~
+
+EDIT: This fork is *not* published to Hex (yet).
 
 Add `openid_connect` to your list of dependencies in `mix.exs`:
 
 ```elixir
 def deps do
-  [{:openid_connect, "~> 0.2.2"}]
+  [{:openid_connect, github: "firezone/openid_connect"}]
 end
 ```
+
+**Note**: This library is not published to Hex (yet). We recommend installing
 
 ## Getting Started
 
@@ -142,7 +148,7 @@ end
 
 * [Brian Cardarella](http://twitter.com/bcardarella)
 
-[We are very thankful for the many contributors](https://github.com/dockyard/openid_connect/graphs/contributors)
+[We are very thankful for the many contributors](https://github.com//openid_connect/graphs/contributors)
 
 ## Versioning ##
 
