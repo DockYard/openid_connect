@@ -20,7 +20,7 @@ def deps do
 end
 ```
 
-**Note**: This library is not published to Hex (yet). We recommend installing
+**Note**: This library is not published to Hex (yet). Install from GitHub instead.
 
 ## Getting Started
 
