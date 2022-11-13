@@ -6,9 +6,9 @@ defmodule OpenIDConnect.WorkerTest do
   setup :verify_on_exit!
 
   @google_document Fixtures.load(:google, :discovery_document)
-  @google_certs Fixtures.load(:google, :certs)
+  @google_certs Fixtures.load(:google, :jwks)
 
-  alias OpenIDConnect.{HTTPClientMock}
+  alias OpenIDConnect.HTTPClientMock
 
   test "starting with :ignore does nothing" do
     :ignore = OpenIDConnect.Worker.start_link(:ignore)
@@ -93,9 +93,13 @@ defmodule OpenIDConnect.WorkerTest do
 
   defp mock_http_requests do
     HTTPClientMock
-    |> expect(:get, fn "https://accounts.google.com/.well-known/openid-configuration", _headers, _opts ->
+    |> expect(:get, fn "https://accounts.google.com/.well-known/openid-configuration",
+                       _headers,
+                       _opts ->
       @google_document
     end)
-    |> expect(:get, fn "https://www.googleapis.com/oauth2/v3/certs", _headers, _opts -> @google_certs end)
+    |> expect(:get, fn "https://www.googleapis.com/oauth2/v3/certs", _headers, _opts ->
+      @google_certs
+    end)
   end
 end

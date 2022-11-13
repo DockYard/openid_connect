@@ -1,4 +1,7 @@
 defmodule OpenIDConnect.MockWorker do
+  @moduledoc """
+  Mock the Worker.
+  """
   use GenServer
 
   @google_document Fixtures.load(:google, :discovery_document)
@@ -7,7 +10,7 @@ defmodule OpenIDConnect.MockWorker do
                    |> Jason.decode!()
                    |> OpenIDConnect.normalize_discovery_document()
 
-  @google_jwk Fixtures.load(:google, :certs)
+  @google_jwk Fixtures.load(:google, :jwks)
               |> elem(1)
               |> Map.get(:body)
               |> Jason.decode!()

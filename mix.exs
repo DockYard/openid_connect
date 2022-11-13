@@ -17,7 +17,14 @@ defmodule OpenIDConnect.Mixfile do
       deps: deps(),
       docs: docs(),
       name: "OpenID Connect",
-      source_url: "https://github.com/DockYard/openid_connect"
+      source_url: "https://github.com/firezone/openid_connect",
+      test_coverage: [tool: ExCoveralls],
+      preferred_cli_env: [
+        coveralls: :test,
+        "coveralls.detail": :test,
+        "coveralls.post": :test,
+        "coveralls.html": :test
+      ]
     ]
   end
 
@@ -61,8 +68,11 @@ defmodule OpenIDConnect.Mixfile do
       {:jason, ">= 1.0.0"},
       {:jose, "~> 1.8"},
       {:earmark, "~> 1.2", only: :dev},
+      {:credo, "~> 1.6", only: :dev},
+      {:dialyxir, "~> 1.2", only: :dev},
       {:ex_doc, "~> 0.18", only: :dev},
-      {:mox, "~> 0.4", only: :test}
+      {:excoveralls, "~> 0.14", only: :test},
+      {:mox, "~> 1.0", only: :test}
     ]
   end
 end

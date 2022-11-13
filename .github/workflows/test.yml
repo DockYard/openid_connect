@@ -1,0 +1,85 @@
+name: Test
+on: [push, pull_request]
+
+jobs:
+  static-analysis:
+    runs-on: ubuntu-latest
+    env:
+      MIX_ENV: dev
+      GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+    steps:
+      - uses: actions/checkout@v3
+      - uses: actions/setup-python@v2
+        with:
+          python-version: '3.9'
+      - uses: erlef/setup-beam@v1
+        with:
+          otp-version: '25'
+          elixir-version: '1.14'
+      - uses: actions/cache@v3.0.11
+        name: Setup Elixir cache
+        with:
+          path: |
+            deps
+            _build
+          key: ${{ runner.os }}-mix-otp-25-${{ hashFiles('**/mix.lock') }}
+          restore-keys: |
+            ${{ runner.os }}-mix-otp-25-
+      - uses: actions/cache@v3.0.11
+        name: Setup Python cache
+        with:
+          path: ~/.cache/pip
+          key: ${{ runner.os }}-pip-${{ hashFiles('**/requirements.txt') }}
+          restore-keys: |
+            ${{ runner.os }}-pip-
+      - name: Install Elixir Dependencies
+        run: mix deps.get --only dev
+      - name: Install Python Dependencies
+        run: |
+          pip install -r requirements.txt
+      # Don't cache PLTs based on mix.lock hash, as Dialyzer can incrementally update even old ones
+      # Cache key based on Elixir & Erlang version (also usefull when running in matrix)
+      - name: Restore PLT cache
+        uses: actions/cache@v3.0.11
+        id: plt_cache
+        with:
+          key: |
+            ${{ runner.os }}-${{ steps.beam.outputs.elixir-version }}-${{ steps.beam.outputs.otp-version }}-plt
+          restore-keys: |
+            ${{ runner.os }}-${{ steps.beam.outputs.elixir-version }}-${{ steps.beam.outputs.otp-version }}-plt
+          path: |
+            priv/plts
+      # Create PLTs if no cache was found
+      - name: Create PLTs
+        if: steps.plt_cache.outputs.cache-hit != 'true'
+        run: mix dialyzer --plt
+      - name: Run pre-commit
+        run: |
+          pre-commit install
+          SKIP=no-commit-to-branch pre-commit run --all-files
+
+  unit-test:
+    runs-on: ubuntu-latest
+    env:
+      MIX_ENV: test
+      GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+    steps:
+      - uses: actions/checkout@v3
+      - uses: erlef/setup-beam@v1
+        with:
+          otp-version: '25'
+          elixir-version: '1.14'
+      - uses: actions/cache@v3.0.11
+        with:
+          path: |
+            deps
+            _build
+          key: ${{ runner.os }}-mix-otp-25-${{ hashFiles('**/mix.lock') }}
+          restore-keys: |
+            ${{ runner.os }}-mix-otp-25-
+      - name: Install Dependencies
+        run: mix deps.get --only test
+      - name: Run Tests and Upload Coverage Report
+        run: |
+          # XXX: This can fail when coveralls is down
+          mix coveralls.github

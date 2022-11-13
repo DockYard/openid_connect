@@ -1,4 +1,4 @@
-use Mix.Config
+import Config
 
 config :openid_connect, :http_client, OpenIDConnect.HTTPClientMock
 
