@@ -381,6 +381,8 @@ defmodule OpenIDConnect do
     end
   end
 
+  defp build_uri(nil, _params), do: nil
+
   defp build_uri(uri, params) do
     query = URI.encode_query(params)
 
