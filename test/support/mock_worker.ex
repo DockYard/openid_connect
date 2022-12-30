@@ -17,9 +17,9 @@ defmodule OpenIDConnect.MockWorker do
               |> JOSE.JWK.from()
 
   def init(_) do
-    config =
+    {"google", config} =
       Application.get_env(:openid_connect, :providers)
-      |> Keyword.get(:google)
+      |> List.keyfind("google", 0)
 
     {:ok,
      %{
@@ -29,15 +29,15 @@ defmodule OpenIDConnect.MockWorker do
      }}
   end
 
-  def handle_call({:discovery_document, :google}, _from, state) do
+  def handle_call({:discovery_document, "google"}, _from, state) do
     {:reply, Map.get(state, :document), state}
   end
 
-  def handle_call({:jwk, :google}, _from, state) do
+  def handle_call({:jwk, "google"}, _from, state) do
     {:reply, Map.get(state, :jwk), state}
   end
 
-  def handle_call({:config, :google}, _from, state) do
+  def handle_call({:config, "google"}, _from, state) do
     {:reply, Map.get(state, :config), state}
   end
 
