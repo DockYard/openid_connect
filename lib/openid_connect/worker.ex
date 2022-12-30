@@ -28,32 +28,34 @@ defmodule OpenIDConnect.Worker do
   end
 
   def handle_call({:discovery_document, provider}, _from, state) do
-    discovery_document = get_in(state, [provider, :documents, :discovery_document])
+    provider = Map.fetch!(state, provider)
+    discovery_document = provider.documents.discovery_document
     {:reply, discovery_document, state}
   end
 
   def handle_call({:jwk, provider}, _from, state) do
-    jwk = get_in(state, [provider, :documents, :jwk])
+    provider = Map.fetch!(state, provider)
+    jwk = provider.documents.jwk
     {:reply, jwk, state}
   end
 
   def handle_call({:config, provider}, _from, state) do
-    config = get_in(state, [provider, :config])
+    provider = Map.fetch!(state, provider)
+    config = provider.config
     {:reply, config, state}
   end
 
   def handle_info({:update_documents, provider}, state) do
-    config = get_in(state, [provider, :config])
+    provider = Map.fetch!(state, provider)
+    config = provider.config
     documents = update_documents(provider, config)
-
-    state = put_in(state, [provider, :documents], documents)
-
+    state = Map.put(state, provider, %{provider | documents: documents})
     {:noreply, state}
   end
 
   defp update_documents(provider, config) do
-    {:ok, %{remaining_lifetime: remaining_lifetime}} =
-      {:ok, documents} = OpenIDConnect.update_documents(config)
+    {:ok, %{remaining_lifetime: remaining_lifetime} = documents} =
+      OpenIDConnect.update_documents(config)
 
     refresh_time = time_until_next_refresh(remaining_lifetime)
 

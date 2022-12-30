@@ -6,8 +6,8 @@ defmodule OpenIDConnectTest do
   setup :verify_on_exit!
   setup :set_jose_json_lib
 
-  @google_document Fixtures.load(:google, :discovery_document)
-  @google_certs Fixtures.load(:google, :jwks)
+  @google_document Fixtures.load("google", :discovery_document)
+  @google_certs Fixtures.load("google", :jwks)
 
   alias OpenIDConnect.{HTTPClientMock, MockWorker}
 
@@ -193,7 +193,7 @@ defmodule OpenIDConnectTest do
         expected =
           "https://accounts.google.com/o/oauth2/v2/auth?client_id=CLIENT_ID_1&redirect_uri=https%3A%2F%2Fdev.example.com%3A4200%2Fsession&response_type=code+id_token+token&scope=openid+email+profile"
 
-        assert OpenIDConnect.authorization_uri(:google) == expected
+        assert OpenIDConnect.authorization_uri("google") == expected
       after
         GenServer.stop(pid)
       end
@@ -206,7 +206,7 @@ defmodule OpenIDConnectTest do
         expected =
           "https://accounts.google.com/o/oauth2/v2/auth?client_id=CLIENT_ID_1&redirect_uri=https%3A%2F%2Fdev.example.com%3A4200%2Fsession&response_type=code+id_token+token&scope=openid+email+profile&hd=dockyard.com"
 
-        assert OpenIDConnect.authorization_uri(:google, %{"hd" => "dockyard.com"}) == expected
+        assert OpenIDConnect.authorization_uri("google", %{"hd" => "dockyard.com"}) == expected
       after
         GenServer.stop(pid)
       end
@@ -219,7 +219,7 @@ defmodule OpenIDConnectTest do
         expected =
           "https://accounts.google.com/o/oauth2/v2/auth?client_id=CLIENT_ID_1&redirect_uri=https%3A%2F%2Fdev.example.com%3A4200%2Fsession&response_type=code+id_token+token&scope=something+else"
 
-        assert OpenIDConnect.authorization_uri(:google, %{scope: "something else"}) == expected
+        assert OpenIDConnect.authorization_uri("google", %{scope: "something else"}) == expected
       after
         GenServer.stop(pid)
       end
@@ -232,7 +232,7 @@ defmodule OpenIDConnectTest do
         expected =
           "https://accounts.google.com/o/oauth2/v2/auth?client_id=CLIENT_ID_1&redirect_uri=https%3A%2F%2Fdev.example.com%3A4200%2Fsession&response_type=code+id_token+token&scope=openid+email+profile"
 
-        assert OpenIDConnect.authorization_uri(:google, %{}, :other_openid_worker) == expected
+        assert OpenIDConnect.authorization_uri("google", %{}, :other_openid_worker) == expected
       after
         GenServer.stop(pid)
       end
@@ -243,7 +243,7 @@ defmodule OpenIDConnectTest do
     test "when token fetch is successful" do
       {:ok, pid} = GenServer.start_link(MockWorker, [], name: :openid_connect)
 
-      config = GenServer.call(:openid_connect, {:config, :google})
+      config = GenServer.call(:openid_connect, {:config, "google"})
 
       form_body = [
         client_id: config[:client_id],
@@ -261,7 +261,7 @@ defmodule OpenIDConnectTest do
           {:ok, %HTTPoison.Response{status_code: 200, body: Jason.encode!(%{})}}
         end)
 
-        {:ok, body} = OpenIDConnect.fetch_tokens(:google, %{code: "1234"})
+        {:ok, body} = OpenIDConnect.fetch_tokens("google", %{code: "1234"})
 
         assert body == %{}
       after
@@ -272,7 +272,7 @@ defmodule OpenIDConnectTest do
     test "when token fetch is successful with a different GenServer name" do
       {:ok, pid} = GenServer.start_link(MockWorker, [], name: :other_openid_connect)
 
-      config = GenServer.call(:other_openid_connect, {:config, :google})
+      config = GenServer.call(:other_openid_connect, {:config, "google"})
 
       form_body = [
         client_id: config[:client_id],
@@ -293,7 +293,7 @@ defmodule OpenIDConnectTest do
 
         {:ok, body} =
           OpenIDConnect.fetch_tokens(
-            :google,
+            "google",
             %{code: "1234", id_token: "abcd"},
             :other_openid_connect
           )
@@ -307,7 +307,7 @@ defmodule OpenIDConnectTest do
     test "when params are overridden" do
       {:ok, pid} = GenServer.start_link(MockWorker, [], name: :openid_connect)
 
-      config = GenServer.call(:openid_connect, {:config, :google})
+      config = GenServer.call(:openid_connect, {:config, "google"})
 
       form_body = [
         client_id: config[:client_id],
@@ -324,7 +324,7 @@ defmodule OpenIDConnectTest do
           {:ok, %HTTPoison.Response{status_code: 200, body: Jason.encode!(%{})}}
         end)
 
-        {:ok, body} = OpenIDConnect.fetch_tokens(:google, %{grant_type: "refresh_token"})
+        {:ok, body} = OpenIDConnect.fetch_tokens("google", %{grant_type: "refresh_token"})
 
         assert body == %{}
       after
@@ -345,7 +345,7 @@ defmodule OpenIDConnectTest do
           {:ok, http_error}
         end)
 
-        resp = OpenIDConnect.fetch_tokens(:google, %{code: "1234"})
+        resp = OpenIDConnect.fetch_tokens("google", %{code: "1234"})
 
         assert resp == {:error, :fetch_tokens, http_error}
       after
@@ -366,7 +366,7 @@ defmodule OpenIDConnectTest do
           {:ok, http_error}
         end)
 
-        resp = OpenIDConnect.fetch_tokens(:google, %{code: "1234"})
+        resp = OpenIDConnect.fetch_tokens("google", %{code: "1234"})
 
         assert resp == {:error, :fetch_tokens, http_error}
       after
@@ -391,7 +391,7 @@ defmodule OpenIDConnectTest do
           |> JOSE.JWS.sign(Jason.encode!(claims), %{"alg" => "RS256"})
           |> JOSE.JWS.compact()
 
-        result = OpenIDConnect.verify(:google, token)
+        result = OpenIDConnect.verify("google", token)
         assert result == {:ok, claims}
       after
         GenServer.stop(pid)
@@ -415,7 +415,7 @@ defmodule OpenIDConnectTest do
           |> JOSE.JWS.sign(Jason.encode!(claims), %{"alg" => "RS256"})
           |> JOSE.JWS.compact()
 
-        result = OpenIDConnect.verify(:google, token)
+        result = OpenIDConnect.verify("google", token)
         assert result == {:ok, claims}
       after
         GenServer.stop(pid)
@@ -429,7 +429,7 @@ defmodule OpenIDConnectTest do
         {jwk, []} = Code.eval_file("test/fixtures/jwks/jwk1.exs")
         :ok = GenServer.call(pid, {:put, :jwk, JOSE.JWK.from(jwk)})
 
-        result = OpenIDConnect.verify(:google, "fail")
+        result = OpenIDConnect.verify("google", "fail")
         assert result == {:error, :verify, "invalid token format"}
       after
         GenServer.stop(pid)
@@ -451,7 +451,7 @@ defmodule OpenIDConnectTest do
           ]
           |> Enum.map_join(".", fn header -> Base.encode64(header) end)
 
-        result = OpenIDConnect.verify(:google, token)
+        result = OpenIDConnect.verify("google", token)
         assert result == {:error, :verify, "token claims did not contain a JSON payload"}
       after
         GenServer.stop(pid)
@@ -473,7 +473,7 @@ defmodule OpenIDConnectTest do
           ]
           |> Enum.map_join(".", fn header -> Base.encode64(header) end)
 
-        result = OpenIDConnect.verify(:google, token)
+        result = OpenIDConnect.verify("google", token)
         assert result == {:error, :verify, "no `alg` found in token"}
       after
         GenServer.stop(pid)
@@ -496,7 +496,7 @@ defmodule OpenIDConnectTest do
           |> JOSE.JWS.sign(Jason.encode!(claims), %{"alg" => "RS256"})
           |> JOSE.JWS.compact()
 
-        result = OpenIDConnect.verify(:google, token)
+        result = OpenIDConnect.verify("google", token)
         assert result == {:error, :verify, "verification failed"}
       after
         GenServer.stop(pid)
@@ -518,7 +518,7 @@ defmodule OpenIDConnectTest do
           |> JOSE.JWS.sign(Jason.encode!(claims), %{"alg" => "RS256"})
           |> JOSE.JWS.compact()
 
-        result = OpenIDConnect.verify(:google, token <> " :)")
+        result = OpenIDConnect.verify("google", token <> " :)")
         assert result == {:error, :verify, "verification error"}
       after
         GenServer.stop(pid)

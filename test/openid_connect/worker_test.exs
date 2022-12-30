@@ -5,8 +5,8 @@ defmodule OpenIDConnect.WorkerTest do
   setup :set_mox_global
   setup :verify_on_exit!
 
-  @google_document Fixtures.load(:google, :discovery_document)
-  @google_certs Fixtures.load(:google, :jwks)
+  @google_document Fixtures.load("google", :discovery_document)
+  @google_certs Fixtures.load("google", :jwks)
 
   alias OpenIDConnect.HTTPClientMock
 
@@ -37,20 +37,32 @@ defmodule OpenIDConnect.WorkerTest do
       |> Jason.decode!()
       |> JOSE.JWK.from()
 
-    assert expected_document == get_in(state, [:google, :documents, :discovery_document])
-    assert expected_jwk == get_in(state, [:google, :documents, :jwk])
+    assert expected_document == get_in(state, ["google", :documents, :discovery_document])
+    assert expected_jwk == get_in(state, ["google", :documents, :jwk])
   end
 
-  test "worker can respond to a call for the config" do
+  test "worker can respond to a call for the config using string name" do
     mock_http_requests()
 
     config = Application.get_env(:openid_connect, :providers)
 
     {:ok, pid} = start_supervised({OpenIDConnect.Worker, config})
 
-    google_config = GenServer.call(pid, {:config, :google})
+    google_config = GenServer.call(pid, {:config, "google"})
 
-    assert get_in(config, [:google]) == google_config
+    assert List.keyfind(config, "google", 0) == {"google", google_config}
+  end
+
+  test "worker can respond to a call for the config using atom name" do
+    mock_http_requests()
+
+    config = Application.get_env(:openid_connect, :providers)
+
+    {:ok, pid} = start_supervised({OpenIDConnect.Worker, config})
+
+    google_config = GenServer.call(pid, {:config, :google2})
+
+    assert List.keyfind(config, :google2, 0) == {:google2, google_config}
   end
 
   test "worker can respond to a call for a provider's discovery document" do
@@ -60,7 +72,7 @@ defmodule OpenIDConnect.WorkerTest do
 
     {:ok, pid} = start_supervised({OpenIDConnect.Worker, config})
 
-    discovery_document = GenServer.call(pid, {:discovery_document, :google})
+    discovery_document = GenServer.call(pid, {:discovery_document, "google"})
 
     expected_document =
       @google_document
@@ -79,7 +91,7 @@ defmodule OpenIDConnect.WorkerTest do
 
     {:ok, pid} = start_supervised({OpenIDConnect.Worker, config})
 
-    jwk = GenServer.call(pid, {:jwk, :google})
+    jwk = GenServer.call(pid, {:jwk, "google"})
 
     expected_jwk =
       @google_certs
@@ -93,6 +105,14 @@ defmodule OpenIDConnect.WorkerTest do
 
   defp mock_http_requests do
     HTTPClientMock
+    |> expect(:get, fn "https://accounts.google.com/.well-known/openid-configuration",
+                       _headers,
+                       _opts ->
+      @google_document
+    end)
+    |> expect(:get, fn "https://www.googleapis.com/oauth2/v3/certs", _headers, _opts ->
+      @google_certs
+    end)
     |> expect(:get, fn "https://accounts.google.com/.well-known/openid-configuration",
                        _headers,
                        _opts ->
