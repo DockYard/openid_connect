@@ -16,20 +16,27 @@ defmodule OpenIDConnect.MockWorker do
               |> Jason.decode!()
               |> JOSE.JWK.from()
 
-  def init(_) do
+  def init(_opts) do
+    {:ok, build_state()}
+  end
+
+  defp build_state do
     {"google", config} =
       Application.get_env(:openid_connect, :providers)
       |> List.keyfind("google", 0)
 
-    {:ok,
-     %{
-       config: config,
-       jwk: @google_jwk,
-       document: @google_document
-     }}
+    %{
+      config: config,
+      jwk: @google_jwk,
+      document: @google_document
+    }
   end
 
-  def handle_call({:discovery_document, "google"}, _from, state) do
+  def handle_cast({:reconfigure, state}, _state) do
+    {:noreply, state}
+  end
+
+  def handle_call({:discovery_document, _provider}, _from, state) do
     {:reply, Map.get(state, :document), state}
   end
 

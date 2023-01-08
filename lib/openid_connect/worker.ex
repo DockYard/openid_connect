@@ -14,17 +14,18 @@ defmodule OpenIDConnect.Worker do
   end
 
   def init(:ignore) do
-    :ignore
+    {:ok, []}
   end
 
   def init(provider_configs) do
-    state =
-      Enum.into(provider_configs, %{}, fn {provider, config} ->
-        documents = update_documents(provider, config)
-        {provider, %{config: config, documents: documents}}
-      end)
+    {:ok, build_state(provider_configs)}
+  end
 
-    {:ok, state}
+  defp build_state(provider_configs) do
+    Enum.into(provider_configs, %{}, fn {provider, config} ->
+      documents = update_documents(provider, config)
+      {provider, %{config: config, documents: documents}}
+    end)
   end
 
   def handle_call({:discovery_document, provider}, _from, state) do
@@ -43,6 +44,10 @@ defmodule OpenIDConnect.Worker do
     provider = Map.fetch!(state, provider)
     config = provider.config
     {:reply, config, state}
+  end
+
+  def handle_cast({:reconfigure, provider_configs}, _state) do
+    {:noreply, build_state(provider_configs)}
   end
 
   def handle_info({:update_documents, provider}, state) do

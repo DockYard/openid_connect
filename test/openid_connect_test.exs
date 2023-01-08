@@ -526,6 +526,27 @@ defmodule OpenIDConnectTest do
     end
   end
 
+  describe "reconfigure/2" do
+    test "updates provider configs" do
+      {:ok, pid} = GenServer.start_link(MockWorker, [], name: :openid_connect)
+
+      vault_document =
+        Fixtures.load(:vault, :discovery_document)
+        |> elem(1)
+        |> Map.get(:body)
+        |> Jason.decode!()
+        |> OpenIDConnect.normalize_discovery_document()
+
+      state = %{
+        document: vault_document
+      }
+
+      OpenIDConnect.reconfigure(state)
+
+      assert :sys.get_state(pid) == state
+    end
+  end
+
   defp set_jose_json_lib(_) do
     JOSE.json_module(JasonEncoder)
     []
