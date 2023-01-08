@@ -10,8 +10,8 @@ defmodule OpenIDConnect.WorkerTest do
 
   alias OpenIDConnect.HTTPClientMock
 
-  test "starting with :ignore does nothing" do
-    :ignore = OpenIDConnect.Worker.start_link(:ignore)
+  test "starting with :ignore creates a worker with empty state" do
+    {:ok, _pid} = OpenIDConnect.Worker.start_link(:ignore)
   end
 
   test "starting with a single provider will retrieve the necessary documents" do

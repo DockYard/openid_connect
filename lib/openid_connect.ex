@@ -241,6 +241,10 @@ defmodule OpenIDConnect do
     end
   end
 
+  def reconfigure(provider_configs, name \\ :openid_connect) do
+    GenServer.cast(name, {:reconfigure, provider_configs})
+  end
+
   @doc false
   def normalize_discovery_document(discovery_document) do
     # claims_supported may be missing as it is marked RECOMMENDED by the spec, default to an empty list
