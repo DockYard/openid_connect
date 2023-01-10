@@ -28,6 +28,10 @@ defmodule OpenIDConnect.Worker do
     end)
   end
 
+  def handle_call(:flush, _from, state) do
+    {:reply, state, state}
+  end
+
   def handle_call({:discovery_document, provider}, _from, state) do
     provider = Map.fetch!(state, provider)
     discovery_document = provider.documents.discovery_document
