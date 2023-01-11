@@ -13,7 +13,7 @@ defmodule OpenIDConnectTest do
   }
 
   describe "authorization_uri/2" do
-    test "generates authorization url" do
+    test "generates authorization url with scope and response_type as binaries" do
       {_bypass, uri} = start_fixture("google")
       config = %{@config | discovery_document_uri: uri}
 
@@ -24,6 +24,63 @@ defmodule OpenIDConnectTest do
                   "&redirect_uri=https%3A%2F%2Flocalhost%2Fredirect_uri" <>
                   "&response_type=code+id_token+token" <>
                   "&scope=openid+email+profile"}
+    end
+
+    test "generates authorization url with scope as enum" do
+      {_bypass, uri} = start_fixture("google")
+      config = %{@config | discovery_document_uri: uri, scope: ["openid", "email", "profile"]}
+
+      assert authorization_uri(config) ==
+               {:ok,
+                "https://accounts.google.com/o/oauth2/v2/auth?" <>
+                  "client_id=CLIENT_ID" <>
+                  "&redirect_uri=https%3A%2F%2Flocalhost%2Fredirect_uri" <>
+                  "&response_type=code+id_token+token" <>
+                  "&scope=openid+email+profile"}
+    end
+
+    test "generates authorization url with response_type as enum" do
+      {_bypass, uri} = start_fixture("google")
+
+      config = %{
+        @config
+        | discovery_document_uri: uri,
+          response_type: ["code", "id_token", "token"]
+      }
+
+      assert authorization_uri(config) ==
+               {:ok,
+                "https://accounts.google.com/o/oauth2/v2/auth?" <>
+                  "client_id=CLIENT_ID" <>
+                  "&redirect_uri=https%3A%2F%2Flocalhost%2Fredirect_uri" <>
+                  "&response_type=code+id_token+token" <>
+                  "&scope=openid+email+profile"}
+    end
+
+    test "returns error on empty scope" do
+      {_bypass, uri} = start_fixture("google")
+
+      config = %{@config | discovery_document_uri: uri, scope: nil}
+      assert authorization_uri(config) == {:error, :invalid_scope}
+
+      config = %{@config | discovery_document_uri: uri, scope: ""}
+      assert authorization_uri(config) == {:error, :invalid_scope}
+
+      config = %{@config | discovery_document_uri: uri, scope: []}
+      assert authorization_uri(config) == {:error, :invalid_scope}
+    end
+
+    test "returns error on empty response_type" do
+      {_bypass, uri} = start_fixture("google")
+
+      config = %{@config | discovery_document_uri: uri, response_type: nil}
+      assert authorization_uri(config) == {:error, :invalid_response_type}
+
+      config = %{@config | discovery_document_uri: uri, response_type: ""}
+      assert authorization_uri(config) == {:error, :invalid_response_type}
+
+      config = %{@config | discovery_document_uri: uri, response_type: []}
+      assert authorization_uri(config) == {:error, :invalid_response_type}
     end
 
     test "adds optional params" do
@@ -275,6 +332,30 @@ defmodule OpenIDConnectTest do
     test "returns claims when encoded token is valid" do
       {jwks, []} = Code.eval_file("test/fixtures/jwks/jwk.exs")
       jwk = JOSE.JWK.from(jwks)
+      {_, jwk_pubkey} = JOSE.JWK.to_public_map(jwk)
+
+      {_bypass, uri} = start_fixture("vault", %{"jwks" => jwk_pubkey})
+      config = %{@config | discovery_document_uri: uri}
+
+      claims = %{"email" => "brian@example.com"}
+
+      {_alg, token} =
+        jwk
+        |> JOSE.JWS.sign(Jason.encode!(claims), %{"alg" => "RS256"})
+        |> JOSE.JWS.compact()
+
+      assert verify(config, token) == {:ok, claims}
+    end
+
+    test "returns claims when encoded token is valid using multiple keys" do
+      {jwks, []} = Code.eval_file("test/fixtures/jwks/jwks.exs")
+
+      jwk =
+        jwks
+        |> Map.fetch!("keys")
+        |> List.first()
+        |> JOSE.JWK.from()
+
       {_, jwk_pubkey} = JOSE.JWK.to_public_map(jwk)
 
       {_bypass, uri} = start_fixture("vault", %{"jwks" => jwk_pubkey})

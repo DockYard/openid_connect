@@ -96,7 +96,7 @@ defmodule OpenIDConnect do
     end
   end
 
-  defp fetch_scope(%{scope: scope}) when is_nil(scope) or scope == [],
+  defp fetch_scope(%{scope: scope}) when is_nil(scope) or scope == [] or scope == "",
     do: {:error, :invalid_scope}
 
   defp fetch_scope(%{scope: scope}) when is_binary(scope),
@@ -123,6 +123,7 @@ defmodule OpenIDConnect do
 
   defp parse_response_type(nil), do: {:error, :invalid_response_type}
   defp parse_response_type([]), do: {:error, :invalid_response_type}
+  defp parse_response_type(""), do: {:error, :invalid_response_type}
 
   defp parse_response_type(response_type) when is_binary(response_type),
     do: {:ok, String.split(response_type)}
@@ -258,8 +259,6 @@ defmodule OpenIDConnect do
 
   defp do_verify(%JOSE.JWK{} = jwk, token_alg, jwt),
     do: JOSE.JWS.verify_strict(jwk, [token_alg], jwt)
-
-  defp build_uri(nil, _params), do: nil
 
   defp build_uri(uri, params) do
     query = URI.encode_query(params)

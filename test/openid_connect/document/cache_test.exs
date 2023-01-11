@@ -98,14 +98,14 @@ defmodule OpenIDConnect.Document.CacheTest do
 
   describe ":gc" do
     test "doesn't do anything when cache is empty" do
-      {:ok, pid} = start_link(name: :gc_test)
+      {:ok, pid} = start_link(name: :gc_test1)
       assert Enum.empty?(flush(pid))
       send(pid, :gc)
       assert flush(pid) == %{}
     end
 
     test "removes excessive entries from cache" do
-      {:ok, pid} = start_link(name: :gc_test)
+      {:ok, pid} = start_link(name: :gc_test2)
 
       documents =
         for i <- 1..2000 do

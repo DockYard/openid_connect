@@ -4,6 +4,10 @@ defmodule OpenIDConnect.DocumentTest do
   import OpenIDConnect.Document
 
   describe "fetch_document/1" do
+    test "returns error when URL is nil" do
+      assert fetch_document(nil) == {:error, :invalid_discovery_document_uri}
+    end
+
     test "returns valid document from a given url" do
       {_bypass, uri} = start_fixture("auth0")
 
