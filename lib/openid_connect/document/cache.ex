@@ -15,7 +15,6 @@ defmodule OpenIDConnect.Document.Cache do
   end
 
   def put(pid \\ __MODULE__, uri, document) do
-    # TODO: we need to update timer in case the new document is expiring before it will exceed
     GenServer.cast(pid, {:put, uri, document})
   end
 
@@ -28,12 +27,12 @@ defmodule OpenIDConnect.Document.Cache do
   end
 
   def handle_cast({:put, uri, document}, state) do
-    if not document_expired?(document) do
+    if document_expired?(document) do
+      {:noreply, state}
+    else
       expires_in_seconds = expires_in_seconds(document.expires_at)
       timer_ref = Process.send_after(self(), :remove, :timer.seconds(expires_in_seconds))
       state = Map.put(state, uri, {timer_ref, DateTime.utc_now(), document})
-      {:noreply, state}
-    else
       {:noreply, state}
     end
   end
