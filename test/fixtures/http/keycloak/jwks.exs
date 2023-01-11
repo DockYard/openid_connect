@@ -1,4 +1,4 @@
-%HTTPoison.Response{
+%{
   status_code: 200,
   body: %{
     "keys" => [
@@ -39,16 +39,6 @@
     {"Cache-Control", "no-cache"},
     {"X-Content-Type-Options", "nosniff"},
     {"X-XSS-Protection", "1; mode=block"},
-    {"Content-Type", "application/json"},
-    {"content-length", "2917"}
-  ],
-  request_url: "http://localhost:8080/realms/master/protocol/openid-connect/certs",
-  request: %HTTPoison.Request{
-    method: :get,
-    url: "http://localhost:8080/realms/master/protocol/openid-connect/certs",
-    headers: [],
-    body: "",
-    params: %{},
-    options: []
-  }
+    {"Content-Type", "application/json"}
+  ]
 }

@@ -1,4 +1,4 @@
-%HTTPoison.Response{
+%{
   status_code: 200,
   body: %{
     "keys" => [
@@ -151,16 +151,6 @@
      "esctx=AQABAAAAAAD--DLA3VO7QrddgJg7WevrisuCv4ebeqYc-_POPk9YcVRhn9bd7CUqVj30-s0iSKalFe-d2lZ-f4-XK0n9ihY93a7m9SsGmsIMY7zD9ez66cNlKITs_ezKr4bRpFPqimcqQaHWPo_UKxjSYOQvsOH1N0F2vp-2Ht7cFowAp8vUIO0oCj1Fbps_-Di7qvstKBXVmkHe6uENMnH0BpbyPPa0DskUrFDPPwH1po1Hthps2l35xFERrP6mYU6aS4jwW98gAA; domain=.login.microsoftonline.com; path=/; secure; HttpOnly; SameSite=None"},
     {"Set-Cookie", "x-ms-gateway-slice=estsfd; path=/; secure; samesite=none; httponly"},
     {"Set-Cookie", "stsservicecookie=estsfd; path=/; secure; samesite=none; httponly"},
-    {"Date", "Sat, 12 Nov 2022 20:59:21 GMT"},
-    {"Content-Length", "15922"}
-  ],
-  request_url: "https://login.microsoftonline.com/common/discovery/v2.0/keys",
-  request: %HTTPoison.Request{
-    method: :get,
-    url: "https://login.microsoftonline.com/common/discovery/v2.0/keys",
-    headers: [],
-    body: "",
-    params: %{},
-    options: []
-  }
+    {"Date", "Sat, 12 Nov 2022 20:59:21 GMT"}
+  ]
 }

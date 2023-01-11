@@ -1,4 +1,4 @@
-%HTTPoison.Response{
+%{
   status_code: 200,
   body: %{
     "keys" => [
@@ -26,16 +26,6 @@
     {"Cache-Control", "no-store"},
     {"Content-Type", "application/json"},
     {"Strict-Transport-Security", "max-age=31536000; includeSubDomains"},
-    {"Date", "Sat, 12 Nov 2022 19:56:52 GMT"},
-    {"Content-Length", "900"}
-  ],
-  request_url: "http://0.0.0.0:8200/v1/identity/oidc/provider/default/.well-known/keys",
-  request: %HTTPoison.Request{
-    method: :get,
-    url: "http://0.0.0.0:8200/v1/identity/oidc/provider/default/.well-known/keys",
-    headers: [],
-    body: "",
-    params: %{},
-    options: []
-  }
+    {"Date", "Sat, 12 Nov 2022 19:56:52 GMT"}
+  ]
 }

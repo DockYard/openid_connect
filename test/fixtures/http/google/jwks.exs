@@ -1,4 +1,4 @@
-%HTTPoison.Response{
+%{
   status_code: 200,
   body: %{
     "keys" => [
@@ -35,16 +35,6 @@
     {"Alt-Svc",
      "h3=\":443\"; ma=2592000,h3-29=\":443\"; ma=2592000,h3-Q050=\":443\"; ma=2592000,h3-Q046=\":443\"; ma=2592000,h3-Q043=\":443\"; ma=2592000,quic=\":443\"; ma=2592000; v=\"46,43\""},
     {"Accept-Ranges", "none"},
-    {"Vary", "Origin,X-Origin,Referer,Accept-Encoding"},
-    {"Transfer-Encoding", "chunked"}
-  ],
-  request_url: "https://www.googleapis.com/oauth2/v3/certs",
-  request: %HTTPoison.Request{
-    method: :get,
-    url: "https://www.googleapis.com/oauth2/v3/certs",
-    headers: [],
-    body: "",
-    params: %{},
-    options: []
-  }
+    {"Vary", "Origin,X-Origin,Referer,Accept-Encoding"}
+  ]
 }

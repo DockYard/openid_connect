@@ -1,4 +1,4 @@
-%HTTPoison.Response{
+%{
   status_code: 200,
   body: %{
     "authorization_endpoint" => "https://common.auth0.com/authorize",
@@ -64,8 +64,6 @@
   headers: [
     {"Date", "Sat, 12 Nov 2022 19:57:59 GMT"},
     {"Content-Type", "application/json; charset=utf-8"},
-    {"Transfer-Encoding", "chunked"},
-    {"Connection", "keep-alive"},
     {"CF-Ray", "7691d6fb8d50f96b-SJC"},
     {"Access-Control-Allow-Origin", "*"},
     {"Cache-Control", "public, max-age=15, stale-while-revalidate=15, stale-if-error=86400"},
@@ -89,14 +87,5 @@
     {"X-RateLimit-Reset", "1668283080"},
     {"Server", "cloudflare"},
     {"alt-svc", "h3=\":443\"; ma=86400, h3-29=\":443\"; ma=86400"}
-  ],
-  request_url: "https://common.auth0.com/.well-known/openid-configuration",
-  request: %HTTPoison.Request{
-    method: :get,
-    url: "https://common.auth0.com/.well-known/openid-configuration",
-    headers: [],
-    body: "",
-    params: %{},
-    options: []
-  }
+  ]
 }

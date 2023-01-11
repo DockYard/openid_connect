@@ -1,4 +1,4 @@
-%HTTPoison.Response{
+%{
   status_code: 200,
   body: %{
     "keys" => [
@@ -33,8 +33,6 @@
   headers: [
     {"Date", "Sat, 12 Nov 2022 19:58:26 GMT"},
     {"Content-Type", "application/json; charset=utf-8"},
-    {"Transfer-Encoding", "chunked"},
-    {"Connection", "keep-alive"},
     {"CF-Ray", "7691d7a5d88df96b-SJC"},
     {"Access-Control-Allow-Origin", "*"},
     {"Cache-Control", "public, max-age=15, stale-while-revalidate=15, stale-if-error=86400"},
@@ -58,14 +56,5 @@
     {"X-RateLimit-Reset", "1668283107"},
     {"Server", "cloudflare"},
     {"alt-svc", "h3=\":443\"; ma=86400, h3-29=\":443\"; ma=86400"}
-  ],
-  request_url: "https://common.auth0.com/.well-known/jwks.json",
-  request: %HTTPoison.Request{
-    method: :get,
-    url: "https://common.auth0.com/.well-known/jwks.json",
-    headers: [],
-    body: "",
-    params: %{},
-    options: []
-  }
+  ]
 }

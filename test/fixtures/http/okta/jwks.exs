@@ -1,4 +1,4 @@
-%HTTPoison.Response{
+%{
   status_code: 200,
   body: %{
     "keys" => [
@@ -25,7 +25,6 @@
   headers: [
     {"Date", "Sat, 12 Nov 2022 19:41:02 GMT"},
     {"Content-Type", "application/json"},
-    {"Transfer-Encoding", "chunked"},
     {"Connection", "keep-alive"},
     {"Server", "nginx"},
     {"Public-Key-Pins-Report-Only",
@@ -44,14 +43,5 @@
     {"x-content-type-options", "nosniff"},
     {"Strict-Transport-Security", "max-age=315360000; includeSubDomains"},
     {"X-Okta-Request-Id", "Y2_2zY7e1--88ktkBh3QSgAABkg"}
-  ],
-  request_url: "https://common.okta.com/oauth2/v1/keys",
-  request: %HTTPoison.Request{
-    method: :get,
-    url: "https://common.okta.com/oauth2/v1/keys",
-    headers: [],
-    body: "",
-    params: %{},
-    options: []
-  }
+  ]
 }

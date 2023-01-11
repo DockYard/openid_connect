@@ -1,4 +1,4 @@
-%HTTPoison.Response{
+%{
   status_code: 200,
   body: %{
     "authorization_endpoint" => "https://login.microsoftonline.com/common/oauth2/v2.0/authorize",
@@ -67,16 +67,6 @@
      "esctx=AQABAAAAAAD--DLA3VO7QrddgJg7Wevr2ALKzZMjPY-Tt7ffB-f_7y4AMTUR-4m-AQDAi0jJ1K4_N7dY0CZmKZdSweQPMgerZ-TeKnty43nfmYRZS2G39bKUZp5erQLwiB9rkuLis4_ee_cAZK7nh1pkqOh0_t52P9svf75Le0-ex8iyPVhexTbIROTaaYvo6Fl9DFqOtZOnmQplc6ken-ddUcLbnZRSKOTFdr03VB8oSt5gD2BBw2e5qeBuocgX0hS-W-FNbG0gAA; domain=.login.microsoftonline.com; path=/; secure; HttpOnly; SameSite=None"},
     {"Set-Cookie", "x-ms-gateway-slice=estsfd; path=/; secure; samesite=none; httponly"},
     {"Set-Cookie", "stsservicecookie=estsfd; path=/; secure; samesite=none; httponly"},
-    {"Date", "Sat, 12 Nov 2022 19:36:29 GMT"},
-    {"Content-Length", "1547"}
-  ],
-  request_url: "https://login.microsoftonline.com/common/v2.0/.well-known/openid-configuration",
-  request: %HTTPoison.Request{
-    method: :get,
-    url: "https://login.microsoftonline.com/common/v2.0/.well-known/openid-configuration",
-    headers: [],
-    body: "",
-    params: %{},
-    options: []
-  }
+    {"Date", "Sat, 12 Nov 2022 19:36:29 GMT"}
+  ]
 }

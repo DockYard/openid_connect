@@ -1,4 +1,4 @@
-%HTTPoison.Response{
+%{
   status_code: 200,
   body: %{
     "acr_values_supported" => ["onelogin:nist:level:1:re-auth"],
@@ -66,21 +66,11 @@
   headers: [
     {"Date", "Sat, 12 Nov 2022 19:41:55 GMT"},
     {"Content-Type", "application/json; charset=utf-8"},
-    {"Content-Length", "1790"},
     {"Connection", "keep-alive"},
     {"vary", "Origin"},
     {"strict-transport-security", "max-age=63072000; includeSubDomains;"},
     {"x-content-type-options", "nosniff"},
     {"set-cookie", "ol_oidc_canary_115=false; path=/; domain=.onelogin.com; HttpOnly; Secure"},
     {"cache-control", "private"}
-  ],
-  request_url: "https://common.onelogin.com/oidc/2/.well-known/openid-configuration",
-  request: %HTTPoison.Request{
-    method: :get,
-    url: "https://common.onelogin.com/oidc/2/.well-known/openid-configuration",
-    headers: [],
-    body: "",
-    params: %{},
-    options: []
-  }
+  ]
 }

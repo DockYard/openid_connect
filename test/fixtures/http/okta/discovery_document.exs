@@ -1,4 +1,4 @@
-%HTTPoison.Response{
+%{
   status_code: 200,
   body: %{
     "authorization_endpoint" => "https://common.okta.com/oauth2/v1/authorize",
@@ -109,7 +109,6 @@
   headers: [
     {"Date", "Sat, 12 Nov 2022 19:40:24 GMT"},
     {"Content-Type", "application/json"},
-    {"Transfer-Encoding", "chunked"},
     {"Connection", "keep-alive"},
     {"Server", "nginx"},
     {"Public-Key-Pins-Report-Only",
@@ -126,14 +125,5 @@
     {"x-content-type-options", "nosniff"},
     {"Strict-Transport-Security", "max-age=315360000; includeSubDomains"},
     {"X-Okta-Request-Id", "Y2_2qFFQ3zhcoZh3312xKwAAARU"}
-  ],
-  request_url: "https://common.okta.com/.well-known/openid-configuration",
-  request: %HTTPoison.Request{
-    method: :get,
-    url: "https://common.okta.com/.well-known/openid-configuration",
-    headers: [],
-    body: "",
-    params: %{},
-    options: []
-  }
+  ]
 }
