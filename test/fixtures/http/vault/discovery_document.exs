@@ -1,4 +1,4 @@
-%HTTPoison.Response{
+%{
   status_code: 200,
   body: %{
     "authorization_endpoint" =>
@@ -33,18 +33,6 @@
     {"Cache-Control", "max-age=3600"},
     {"Content-Type", "application/json"},
     {"Strict-Transport-Security", "max-age=31536000; includeSubDomains"},
-    {"Date", "Sat, 12 Nov 2022 19:50:54 GMT"},
-    {"Content-Length", "849"}
-  ],
-  request_url:
-    "http://127.0.0.1:8200/v1/identity/oidc/provider/default/.well-known/openid-configuration",
-  request: %HTTPoison.Request{
-    method: :get,
-    url:
-      "http://127.0.0.1:8200/v1/identity/oidc/provider/default/.well-known/openid-configuration",
-    headers: [],
-    body: "",
-    params: %{},
-    options: []
-  }
+    {"Date", "Sat, 12 Nov 2022 19:50:54 GMT"}
+  ]
 }

@@ -1,13 +1,13 @@
 defmodule OpenIDConnect.Mixfile do
   use Mix.Project
 
-  @version "0.2.2"
+  @version "1.0.0"
 
   def project do
     [
       app: :openid_connect,
       version: @version,
-      elixir: "~> 1.3",
+      elixir: "~> 1.13",
       build_embedded: Mix.env() == :prod,
       start_permanent: Mix.env() == :prod,
       elixirc_paths: elixirc_paths(Mix.env()),
@@ -28,14 +28,14 @@ defmodule OpenIDConnect.Mixfile do
     ]
   end
 
-  # Specifies which paths to compile per environment
   defp elixirc_paths(:test), do: elixirc_paths(nil) ++ ["test/support"]
   defp elixirc_paths(_), do: ["lib"]
-  # Configuration for the OTP application
-  #
-  # Type "mix help compile.app" for more information
+
   def application do
-    [extra_applications: [:logger]]
+    [
+      mod: {OpenIDConnect.Application, []},
+      extra_applications: [:logger]
+    ]
   end
 
   def description do
@@ -64,15 +64,18 @@ defmodule OpenIDConnect.Mixfile do
 
   defp deps do
     [
-      {:httpoison, "~> 1.2"},
       {:jason, ">= 1.0.0"},
+      {:finch, "~> 0.14"},
       {:jose, "~> 1.8"},
+
+      # Test deps
       {:earmark, "~> 1.2", only: :dev},
       {:credo, "~> 1.6", only: :dev},
       {:dialyxir, "~> 1.2", only: :dev},
       {:ex_doc, "~> 0.18", only: :dev},
       {:excoveralls, "~> 0.14", only: :test},
-      {:mox, "~> 1.0", only: :test}
+      {:plug_cowboy, "~> 2.6", only: :test},
+      {:bypass, "~> 2.1", only: :test}
     ]
   end
 end

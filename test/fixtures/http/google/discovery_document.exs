@@ -1,4 +1,4 @@
-%HTTPoison.Response{
+%{
   status_code: 200,
   body: %{
     "authorization_endpoint" => "https://accounts.google.com/o/oauth2/v2/auth",
@@ -53,7 +53,6 @@
     {"Cross-Origin-Opener-Policy", "same-origin; report-to=\"federated-signon-mpm-access\""},
     {"Report-To",
      "{\"group\":\"federated-signon-mpm-access\",\"max_age\":2592000,\"endpoints\":[{\"url\":\"https://csp.withgoogle.com/csp/report-to/federated-signon-mpm-access\"}]}"},
-    {"Content-Length", "1280"},
     {"X-Content-Type-Options", "nosniff"},
     {"Server", "sffe"},
     {"X-XSS-Protection", "0"},
@@ -65,14 +64,5 @@
     {"Content-Type", "application/json"},
     {"Alt-Svc",
      "h3=\":443\"; ma=2592000,h3-29=\":443\"; ma=2592000,h3-Q050=\":443\"; ma=2592000,h3-Q046=\":443\"; ma=2592000,h3-Q043=\":443\"; ma=2592000,quic=\":443\"; ma=2592000; v=\"46,43\""}
-  ],
-  request_url: "https://accounts.google.com/.well-known/openid-configuration",
-  request: %HTTPoison.Request{
-    method: :get,
-    url: "https://accounts.google.com/.well-known/openid-configuration",
-    headers: [],
-    body: "",
-    params: %{},
-    options: []
-  }
+  ]
 }

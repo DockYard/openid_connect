@@ -1,4 +1,4 @@
-%HTTPoison.Response{
+%{
   status_code: 200,
   body: %{
     "frontchannel_logout_supported" => true,
@@ -282,16 +282,6 @@
     {"Cache-Control", "no-cache, must-revalidate, no-transform, no-store"},
     {"X-Content-Type-Options", "nosniff"},
     {"X-XSS-Protection", "1; mode=block"},
-    {"Content-Type", "application/json"},
-    {"content-length", "5823"}
-  ],
-  request_url: "http://localhost:8080/realms/master/.well-known/openid-configuration",
-  request: %HTTPoison.Request{
-    method: :get,
-    url: "http://localhost:8080/realms/master/.well-known/openid-configuration",
-    headers: [],
-    body: "",
-    params: %{},
-    options: []
-  }
+    {"Content-Type", "application/json"}
+  ]
 }

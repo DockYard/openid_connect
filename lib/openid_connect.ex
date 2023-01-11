@@ -2,11 +2,58 @@ defmodule OpenIDConnect do
   @moduledoc """
   Handles a majority of the life-cycle concerns with [OpenID Connect](http://openid.net/connect/)
   """
+  alias OpenIDConnect.Document
 
   @typedoc """
-  URI as a string
+  URL to a [OpenID Discovery Document](https://openid.net/specs/openid-connect-discovery-1_0.html) endpoint.
   """
-  @type uri :: String.t()
+  @type discovery_document_uri :: String.t()
+
+  @typedoc """
+  OAuth 2.0 Client Identifier valid at the Authorization Server.
+  """
+  @type client_id :: String.t()
+
+  @typedoc """
+  OAuth 2.0 Client Secret valid at the Authorization Server.
+  """
+  @type client_secret :: String.t()
+
+  @typedoc """
+  Redirection URI to which the response will be sent.
+
+  This URI MUST exactly match one of the Redirection URI values for the Client pre-registered at the OpenID Provider,
+  with the matching performed as described in Section 6.2.1 of [RFC3986] (Simple String Comparison).
+
+  When using this flow, the Redirection URI SHOULD use the https scheme; however, it MAY use the http scheme,
+  provided that the Client Type is confidential, as defined in Section 2.1 of OAuth 2.0,
+  and provided the OP allows the use of http Redirection URIs in this case. The Redirection URI MAY use an alternate scheme,
+  such as one that is intended to identify a callback into a native application.
+  """
+  @type redirect_uri :: String.t()
+
+  @typedoc """
+  OAuth 2.0 Response Type value that determines the authorization processing flow to be used,
+  including what parameters are returned from the endpoints used.
+  """
+  @type response_type :: [String.t()] | String.t()
+
+  @typedoc """
+  OAuth 2.0 Scope Values that the Client is declaring that it will restrict itself to using.
+  """
+  @type scope :: [String.t()] | String.t()
+
+  @typedoc """
+  The configuration of a OpenID provider.
+  """
+  @type config :: %{
+          required(:discovery_document_uri) => discovery_document_uri(),
+          required(:client_id) => client_id(),
+          required(:client_secret) => client_secret(),
+          required(:redirect_uri) => redirect_uri(),
+          required(:response_type) => response_type(),
+          required(:scope) => scope()
+        }
 
   @typedoc """
   JSON Web Token
@@ -15,65 +62,6 @@ defmodule OpenIDConnect do
   """
   @type jwt :: String.t()
 
-  @typedoc """
-  The provider name as an atom
-
-  Example: `:google`
-
-  This atom should match what you've used in your application config
-  """
-  @type provider :: atom
-
-  @typedoc """
-  The payload of user data from the provider
-  """
-  @type claims :: map
-
-  @typedoc """
-  The name of the genserver
-
-  This is optional and will default to `:openid_connect` unless overridden
-  """
-  @type name :: atom
-
-  @typedoc """
-  Query param map
-  """
-  @type params :: map
-
-  @typedoc """
-  The success tuple
-
-  The 2nd element will be the relevant value to work with
-  """
-  @type success(value) :: {:ok, value}
-  @typedoc """
-  A string reason for an error failure
-  """
-  @type reason :: String.t() | %HTTPoison.Error{} | %HTTPoison.Response{}
-
-  @typedoc """
-  An error tuple
-
-  The 2nd element will indicate which function failed
-  The 3rd element will give details of the failure
-  """
-  @type error(name) :: {:error, name, reason}
-
-  @typedoc """
-  A provider's documents
-
-  * discovery_document: the provider's discovery document for OpenID Connect
-  * jwk: the provider's certificates converted into a JOSE JSON Web Key
-  * remaining_lifetime: how long the provider's JWK is valid for
-  """
-  @type documents :: %{
-          discovery_document: map,
-          jwk: JOSE.JWK.t(),
-          remaining_lifetime: integer | nil
-        }
-
-  @spec authorization_uri(provider, params, name) :: uri
   @doc """
   Builds the authorization URI according to the spec in the providers discovery document
 
@@ -85,27 +73,63 @@ defmodule OpenIDConnect do
   > It is *highly suggested* that you add the `state` param for security reasons. Your
   > OpenID Connect provider should have more information on this topic.
   """
-  def authorization_uri(provider, params \\ %{}, name \\ :openid_connect) do
-    document = discovery_document(provider, name)
-    config = config(provider, name)
+  @spec authorization_uri(config(), params :: %{optional(atom) => term()}) ::
+          {:ok, uri :: String.t()} | {:error, term()}
+  def authorization_uri(config, params \\ %{}) do
+    discovery_document_uri = config.discovery_document_uri
 
-    uri = Map.get(document, "authorization_endpoint")
+    with {:ok, document} <- Document.fetch_document(discovery_document_uri),
+         {:ok, response_type} <- fetch_response_type(config, document),
+         {:ok, scope} <- fetch_scope(config) do
+      params =
+        Map.merge(
+          %{
+            client_id: config.client_id,
+            redirect_uri: config.redirect_uri,
+            response_type: response_type,
+            scope: scope
+          },
+          params
+        )
 
-    params =
-      Map.merge(
-        %{
-          client_id: client_id(config),
-          redirect_uri: redirect_uri(config),
-          response_type: response_type(provider, config, name),
-          scope: normalize_scope(provider, config[:scope])
-        },
-        params
-      )
-
-    build_uri(uri, params)
+      {:ok, build_uri(document.authorization_endpoint, params)}
+    end
   end
 
-  @spec end_session_uri(provider, params, name) :: uri
+  defp fetch_scope(%{scope: scope}) when is_nil(scope) or scope == [],
+    do: {:error, :invalid_scope}
+
+  defp fetch_scope(%{scope: scope}) when is_binary(scope),
+    do: {:ok, scope}
+
+  defp fetch_scope(%{scope: scopes}) when is_list(scopes),
+    do: {:ok, Enum.join(scopes, " ")}
+
+  defp fetch_response_type(
+         %{response_type: response_type},
+         %Document{response_types_supported: response_types_supported}
+       ) do
+    with {:ok, response_type} <- parse_response_type(response_type) do
+      response_type = Enum.sort(response_type)
+
+      if Enum.all?(response_type, &(&1 in response_types_supported)) do
+        {:ok, Enum.join(response_type, " ")}
+      else
+        {:error,
+         {:response_type_not_supported, response_types_supported: response_types_supported}}
+      end
+    end
+  end
+
+  defp parse_response_type(nil), do: {:error, :invalid_response_type}
+  defp parse_response_type([]), do: {:error, :invalid_response_type}
+
+  defp parse_response_type(response_type) when is_binary(response_type),
+    do: {:ok, String.split(response_type)}
+
+  defp parse_response_type(response_type) when is_list(response_type),
+    do: {:ok, response_type}
+
   @doc """
   Builds the end session URI according to the spec in the providers discovery document
 
@@ -119,25 +143,25 @@ defmodule OpenIDConnect do
 
   Each provider will typically require one or more of the supported query params, e.g. `id_token_hint` or
   `client_id`. Read your provider's OIDC documentation to determine which one(s) you should add.
+
+  Some providers don't specify `end_session_endpoint` in their discovery documents,
+  in such cases `{:error, :endpoint_not_set}` is returned.
   """
-  def end_session_uri(provider, params \\ %{}, name \\ :openid_connect) do
-    document = discovery_document(provider, name)
-    config = config(provider, name)
+  @spec end_session_uri(config(), params :: %{optional(atom) => term()}) ::
+          {:ok, uri :: String.t()} | {:error, term()}
+  def end_session_uri(config, params \\ %{}) do
+    discovery_document_uri = config.discovery_document_uri
 
-    uri = Map.get(document, "end_session_endpoint")
-
-    params =
-      Map.merge(
-        %{
-          client_id: client_id(config)
-        },
-        params
-      )
-
-    build_uri(uri, params)
+    with {:ok, document} <- Document.fetch_document(discovery_document_uri) do
+      if end_session_endpoint = document.end_session_endpoint do
+        params = Map.merge(%{client_id: config.client_id}, params)
+        {:ok, build_uri(end_session_endpoint, params)}
+      else
+        {:error, :endpoint_not_set}
+      end
+    end
   end
 
-  @spec fetch_tokens(provider, params, name) :: success(map) | error(:fetch_tokens)
   @doc """
   Fetches the authentication tokens from the provider
 
@@ -145,133 +169,77 @@ defmodule OpenIDConnect do
   was requested during authorization. `params` may also include any one-off overrides for token
   fetching.
   """
-  def fetch_tokens(provider, params, name \\ :openid_connect)
-
-  def fetch_tokens(provider, code, name) when is_binary(code) do
-    IO.warn(
-      "Deprecation: `OpenIDConnect.fetch_tokens/3` no longer takes a binary as the 2nd argument. Please refer to the docs for the new API."
-    )
-
-    fetch_tokens(provider, %{code: code}, name)
-  end
-
-  def fetch_tokens(provider, params, name) do
-    uri = access_token_uri(provider, name)
-    config = config(provider, name)
+  @spec fetch_tokens(config(), params :: %{optional(atom) => term()}) ::
+          {:ok, response :: map()} | {:error, term()}
+  def fetch_tokens(config, params) do
+    discovery_document_uri = config.discovery_document_uri
 
     form_body =
       Map.merge(
         %{
-          client_id: client_id(config),
-          client_secret: client_secret(config),
-          grant_type: "authorization_code",
-          redirect_uri: redirect_uri(config)
+          client_id: config.client_id,
+          client_secret: config.client_secret,
+          redirect_uri: config.redirect_uri,
+          grant_type: "authorization_code"
         },
         params
       )
-      |> Map.to_list()
+      |> URI.encode_query(:www_form)
 
     headers = [{"Content-Type", "application/x-www-form-urlencoded"}]
 
-    with {:ok, %HTTPoison.Response{status_code: status_code} = resp} when status_code in 200..299 <-
-           http_client().post(uri, {:form, form_body}, headers, http_client_options()),
-         {:ok, json} <- Jason.decode(resp.body),
-         {:ok, json} <- assert_json(json) do
+    with {:ok, document} <- Document.fetch_document(discovery_document_uri),
+         request = Finch.build(:post, document.token_endpoint, headers, form_body),
+         {:ok, %Finch.Response{body: response, status: status}} when status in 200..299 <-
+           Finch.request(request, OpenIDConnect.Finch),
+         {:ok, json} <- Jason.decode(response) do
       {:ok, json}
     else
-      {:ok, resp} -> {:error, :fetch_tokens, resp}
-      {:error, reason} -> {:error, :fetch_tokens, reason}
+      {:ok, %Finch.Response{body: response, status: status}} -> {:error, {status, response}}
+      other -> other
     end
   end
 
-  @spec verify(provider, jwt, name) :: success(claims) | error(:verify)
   @doc """
   Verifies the validity of the JSON Web Token (JWT)
 
   This verification will assert the token's encryption against the provider's
   JSON Web Key (JWK)
   """
-  def verify(provider, jwt, name \\ :openid_connect) do
-    jwk = jwk(provider, name)
+  @spec verify(config(), jwt :: String.t()) ::
+          {:ok, claims :: map()} | {:error, term()}
+  def verify(config, jwt) do
+    discovery_document_uri = config.discovery_document_uri
 
     with {:ok, protected} <- peek_protected(jwt),
          {:ok, decoded_protected} <- Jason.decode(protected),
          {:ok, token_alg} <- Map.fetch(decoded_protected, "alg"),
-         {true, claims, _jwk} <- do_verify(jwk, token_alg, jwt) do
+         {:ok, document} <- Document.fetch_document(discovery_document_uri),
+         {true, claims, _jwk} <- do_verify(document.jwks, token_alg, jwt) do
       Jason.decode(claims)
     else
       {:error, %Jason.DecodeError{}} ->
-        {:error, :verify, "token claims did not contain a JSON payload"}
+        {:error, {:invalid_jwt, "token claims did not contain a JSON payload"}}
 
       {:error, :peek_protected} ->
-        {:error, :verify, "invalid token format"}
+        {:error, {:invalid_jwt, "invalid token format"}}
 
       :error ->
-        {:error, :verify, "no `alg` found in token"}
+        {:error, {:invalid_jwt, "no `alg` found in token"}}
 
       {false, _claims, _jwk} ->
-        {:error, :verify, "verification failed"}
+        {:error, {:invalid_jwt, "verification failed"}}
 
-      _ ->
-        {:error, :verify, "verification error"}
+      {:error, {:case_clause, _}} ->
+        {:error, {:invalid_jwt, "verification failed"}}
+
+      other ->
+        other
     end
   end
 
-  @spec update_documents(list) :: success(documents) | error(:update_documents)
-  @doc """
-  Requests updated documents from the provider
-
-  This function is used by `OpenIDConnect.Worker` for document updates
-  according to the lifetime returned by the provider
-  """
-  def update_documents(config) do
-    uri = discovery_document_uri(config)
-
-    with {:ok, discovery_document, _} <- fetch_resource(uri),
-         {:ok, certs, remaining_lifetime} <- fetch_resource(discovery_document["jwks_uri"]),
-         {:ok, jwk} <- from_certs(certs) do
-      {:ok,
-       %{
-         discovery_document: normalize_discovery_document(discovery_document),
-         jwk: jwk,
-         remaining_lifetime: remaining_lifetime
-       }}
-    else
-      {:error, reason} -> {:error, :update_documents, reason}
-    end
-  end
-
-  def reconfigure(provider_configs, name \\ :openid_connect) do
-    GenServer.cast(name, {:reconfigure, provider_configs})
-  end
-
-  @doc false
-  def normalize_discovery_document(discovery_document) do
-    # claims_supported may be missing as it is marked RECOMMENDED by the spec, default to an empty list
-    sorted_claims_supported =
-      discovery_document
-      |> Map.get("claims_supported", [])
-      |> Enum.sort()
-
-    # response_types_supported's presence is REQUIRED by the spec, crash when missing
-    sorted_response_types_supported =
-      discovery_document
-      |> Map.get("response_types_supported")
-      |> Enum.map(fn response_type ->
-        response_type
-        |> String.split()
-        |> Enum.sort()
-        |> Enum.join(" ")
-      end)
-
-    Map.merge(discovery_document, %{
-      "claims_supported" => sorted_claims_supported,
-      "response_types_supported" => sorted_response_types_supported
-    })
-  end
-
-  defp peek_protected(jwt) do
-    {:ok, JOSE.JWS.peek_protected(jwt)}
+  defp peek_protected(jwks) do
+    {:ok, JOSE.JWS.peek_protected(jwks)}
   rescue
     _ -> {:error, :peek_protected}
   end
@@ -291,100 +259,6 @@ defmodule OpenIDConnect do
   defp do_verify(%JOSE.JWK{} = jwk, token_alg, jwt),
     do: JOSE.JWS.verify_strict(jwk, [token_alg], jwt)
 
-  defp from_certs(certs) do
-    {:ok, JOSE.JWK.from(certs)}
-  rescue
-    _ ->
-      {:error, "certificates bad format"}
-  end
-
-  defp discovery_document(provider, name) do
-    GenServer.call(name, {:discovery_document, provider})
-  end
-
-  defp jwk(provider, name) do
-    GenServer.call(name, {:jwk, provider})
-  end
-
-  defp config(provider, name) do
-    GenServer.call(name, {:config, provider})
-  end
-
-  defp access_token_uri(provider, name) do
-    Map.get(discovery_document(provider, name), "token_endpoint")
-  end
-
-  defp client_id(config) do
-    Keyword.get(config, :client_id)
-  end
-
-  defp client_secret(config) do
-    Keyword.get(config, :client_secret)
-  end
-
-  defp redirect_uri(config) do
-    Keyword.get(config, :redirect_uri)
-  end
-
-  defp response_type(provider, config, name) do
-    response_type =
-      config
-      |> Keyword.get(:response_type)
-      |> normalize_response_type(provider)
-
-    response_types_supported = response_types_supported(provider, name)
-
-    if response_type in response_types_supported do
-      response_type
-    else
-      raise ArgumentError,
-        message: """
-        Requested response type (#{response_type}) not supported by provider (#{provider}).
-        Supported types:
-        #{Enum.join(response_types_supported, "\n")}
-        """
-    end
-  end
-
-  defp normalize_response_type(response_type, provider)
-       when is_nil(response_type) or response_type == [] do
-    raise ArgumentError, "no response_type has been defined for provider `#{provider}`"
-  end
-
-  defp normalize_response_type(response_type, provider) when is_binary(response_type) do
-    response_type
-    |> String.split()
-    |> normalize_response_type(provider)
-  end
-
-  defp normalize_response_type(response_type, _provider) when is_list(response_type) do
-    response_type
-    |> Enum.sort()
-    |> Enum.join(" ")
-  end
-
-  defp response_types_supported(provider, name) do
-    provider
-    |> discovery_document(name)
-    |> Map.get("response_types_supported")
-  end
-
-  defp discovery_document_uri(config) do
-    Keyword.get(config, :discovery_document_uri)
-  end
-
-  defp fetch_resource(uri) do
-    with {:ok, %HTTPoison.Response{status_code: status_code} = resp} when status_code in 200..299 <-
-           http_client().get(uri, [], http_client_options()),
-         {:ok, json} <- Jason.decode(resp.body),
-         {:ok, json} <- assert_json(json) do
-      {:ok, json, remaining_lifetime(resp.headers)}
-    else
-      {:ok, resp} -> {:error, resp}
-      error -> error
-    end
-  end
-
   defp build_uri(nil, _params), do: nil
 
   defp build_uri(uri, params) do
@@ -393,48 +267,5 @@ defmodule OpenIDConnect do
     uri
     |> URI.merge("?#{query}")
     |> URI.to_string()
-  end
-
-  defp assert_json(%{"error" => reason}), do: {:error, reason}
-  defp assert_json(json), do: {:ok, json}
-
-  @spec remaining_lifetime([{String.t(), String.t()}]) :: integer | nil
-  defp remaining_lifetime(headers) do
-    with headers <- Enum.into(headers, %{}),
-         {:ok, max_age} <- find_max_age(headers),
-         {:ok, age} <- find_age(headers) do
-      max_age - age
-    else
-      _ -> nil
-    end
-  end
-
-  defp normalize_scope(provider, scopes) when is_nil(scopes) or scopes == [] do
-    raise ArgumentError, "no scopes have been defined for provider `#{provider}`"
-  end
-
-  defp normalize_scope(_provider, scopes) when is_binary(scopes), do: scopes
-  defp normalize_scope(_provider, scopes) when is_list(scopes), do: Enum.join(scopes, " ")
-
-  defp find_max_age(headers) when is_map(headers) do
-    case Regex.run(~r"(?<=max-age=)\d+", Map.get(headers, "Cache-Control", "")) do
-      [max_age] -> {:ok, String.to_integer(max_age)}
-      _ -> :error
-    end
-  end
-
-  defp find_age(headers) when is_map(headers) do
-    case Map.get(headers, "Age") do
-      nil -> :error
-      age -> {:ok, String.to_integer(age)}
-    end
-  end
-
-  defp http_client do
-    Application.get_env(:openid_connect, :http_client, HTTPoison)
-  end
-
-  defp http_client_options do
-    Application.get_env(:openid_connect, :http_client_options, [])
   end
 end
