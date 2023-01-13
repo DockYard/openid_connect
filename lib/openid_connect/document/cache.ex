@@ -31,7 +31,7 @@ defmodule OpenIDConnect.Document.Cache do
       {:noreply, state}
     else
       expires_in_seconds = expires_in_seconds(document.expires_at)
-      timer_ref = Process.send_after(self(), :remove, :timer.seconds(expires_in_seconds))
+      timer_ref = Process.send_after(self(), {:remove, uri}, :timer.seconds(expires_in_seconds))
       state = Map.put(state, uri, {timer_ref, DateTime.utc_now(), document})
       {:noreply, state}
     end
