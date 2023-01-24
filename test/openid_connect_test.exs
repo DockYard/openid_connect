@@ -302,6 +302,39 @@ defmodule OpenIDConnectTest do
       end
     end
 
+    test "when token fetch is successful when token_endpoint_auth_method is client_secret_basic" do
+      {:ok, pid} = GenServer.start_link(MockWorker, [], name: :openid_connect)
+
+      config = GenServer.call(:openid_connect, {:config, :google_auth_basic})
+      authorization = "Basic #{Base.encode64("#{config[:client_id]}:#{config[:client_secret]}")}"
+
+      form_body = [
+        code: "1234",
+        grant_type: "authorization_code",
+        redirect_uri: config[:redirect_uri]
+      ]
+
+      headers = [
+        {"Content-Type", "application/x-www-form-urlencoded"},
+        {"Authorization", authorization}
+      ]
+
+      try do
+        expect(HTTPClientMock, :post, fn "https://www.googleapis.com/oauth2/v4/token",
+                                         {:form, ^form_body},
+                                         ^headers,
+                                         _opts ->
+          {:ok, %HTTPoison.Response{status_code: 200, body: Jason.encode!(%{})}}
+        end)
+
+        {:ok, body} = OpenIDConnect.fetch_tokens(:google_auth_basic, %{code: "1234"})
+
+        assert body == %{}
+      after
+        GenServer.stop(pid)
+      end
+    end
+
     test "when params are overridden" do
       {:ok, pid} = GenServer.start_link(MockWorker, [], name: :openid_connect)
 
@@ -379,7 +412,7 @@ defmodule OpenIDConnectTest do
 
       try do
         {jwk, []} = Code.eval_file("test/fixtures/rsa/jwk1.exs")
-        :ok = GenServer.call(pid, {:put, :jwk, JOSE.JWK.from(jwk)})
+        :ok = GenServer.call(pid, {:put, :google, :jwk, JOSE.JWK.from(jwk)})
 
         claims = %{"email" => "brian@example.com"}
 
@@ -401,7 +434,7 @@ defmodule OpenIDConnectTest do
 
       try do
         {jwk, []} = Code.eval_file("test/fixtures/rsa/jwks.exs")
-        :ok = GenServer.call(pid, {:put, :jwk, JOSE.JWK.from(jwk)})
+        :ok = GenServer.call(pid, {:put, :google, :jwk, JOSE.JWK.from(jwk)})
 
         claims = %{"email" => "brian@example.com"}
 
@@ -425,7 +458,7 @@ defmodule OpenIDConnectTest do
 
       try do
         {jwk, []} = Code.eval_file("test/fixtures/rsa/jwk1.exs")
-        :ok = GenServer.call(pid, {:put, :jwk, JOSE.JWK.from(jwk)})
+        :ok = GenServer.call(pid, {:put, :google, :jwk, JOSE.JWK.from(jwk)})
 
         result = OpenIDConnect.verify(:google, "fail")
         assert result == {:error, :verify, "invalid token format"}
@@ -439,7 +472,7 @@ defmodule OpenIDConnectTest do
 
       try do
         {jwk, []} = Code.eval_file("test/fixtures/rsa/jwk1.exs")
-        :ok = GenServer.call(pid, {:put, :jwk, JOSE.JWK.from(jwk)})
+        :ok = GenServer.call(pid, {:put, :google, :jwk, JOSE.JWK.from(jwk)})
 
         token =
           [
@@ -462,7 +495,7 @@ defmodule OpenIDConnectTest do
 
       try do
         {jwk, []} = Code.eval_file("test/fixtures/rsa/jwk1.exs")
-        :ok = GenServer.call(pid, {:put, :jwk, JOSE.JWK.from(jwk)})
+        :ok = GenServer.call(pid, {:put, :google, :jwk, JOSE.JWK.from(jwk)})
 
         token =
           [
@@ -486,7 +519,7 @@ defmodule OpenIDConnectTest do
       try do
         {jwk1, []} = Code.eval_file("test/fixtures/rsa/jwk1.exs")
         {jwk2, []} = Code.eval_file("test/fixtures/rsa/jwk2.exs")
-        :ok = GenServer.call(pid, {:put, :jwk, JOSE.JWK.from(jwk1)})
+        :ok = GenServer.call(pid, {:put, :google, :jwk, JOSE.JWK.from(jwk1)})
 
         claims = %{"email" => "brian@example.com"}
 
@@ -508,7 +541,7 @@ defmodule OpenIDConnectTest do
 
       try do
         {jwk, []} = Code.eval_file("test/fixtures/rsa/jwk1.exs")
-        :ok = GenServer.call(pid, {:put, :jwk, JOSE.JWK.from(jwk)})
+        :ok = GenServer.call(pid, {:put, :google, :jwk, JOSE.JWK.from(jwk)})
 
         claims = %{"email" => "brian@example.com"}
 
