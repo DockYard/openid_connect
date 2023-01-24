@@ -1,5 +1,5 @@
 defmodule OpenIDConnectTest do
-  use ExUnit.Case
+  use ExUnit.Case, async: true
   import OpenIDConnect.Fixtures
   import OpenIDConnect
 
