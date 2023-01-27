@@ -53,7 +53,16 @@ defmodule OpenIDConnect.DocumentTest do
     end
 
     test "supports all gateway providers" do
-      for provider <- ["auth0", "azure", "google", "keycloak", "okta", "onelogin", "vault"] do
+      for provider <- [
+            "auth0",
+            "azure",
+            "google",
+            "keycloak",
+            "okta",
+            "onelogin",
+            "vault",
+            "cognito"
+          ] do
         {_bypass, uri} = start_fixture(provider)
         assert {:ok, document} = fetch_document(uri)
         assert not is_nil(document.jwks)
@@ -65,6 +74,33 @@ defmodule OpenIDConnect.DocumentTest do
 
       assert {:ok, document} = fetch_document(uri)
       assert {:ok, ^document} = fetch_document(uri)
+    end
+
+    test "returns error when JSWKS is invalid" do
+      invalid_jwks = %{
+        "keys" => [
+          %{
+            "kid" => "1234example=",
+            "alg" => "RS256",
+            "kty" => "RSA",
+            "e" => "AQAB",
+            "n" => "1234567890",
+            "use" => "sig"
+          },
+          %{
+            "kid" => "5678example=",
+            "alg" => "RS256",
+            "kty" => "RSA",
+            "e" => "AQAB",
+            "n" => "987654321",
+            "use" => "sig"
+          }
+        ]
+      }
+
+      {_bypass, uri} = start_fixture("auth0", %{"jwks" => invalid_jwks})
+
+      assert fetch_document(uri) == {:error, :invalid_jwks_certificates}
     end
 
     test "handles non 2XX response codes" do

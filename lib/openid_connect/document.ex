@@ -126,7 +126,7 @@ defmodule OpenIDConnect.Document do
           end),
         claims_supported:
           Map.get(document_json, "claims_supported")
-          |> Enum.sort()
+          |> sort_claims()
       }
 
       {:ok, document}
@@ -135,9 +135,12 @@ defmodule OpenIDConnect.Document do
     end
   end
 
+  defp sort_claims(nil), do: nil
+  defp sort_claims(claims), do: Enum.sort(claims)
+
   defp from_certs(certs) do
     {:ok, JOSE.JWK.from(certs)}
   rescue
-    _ -> {:error, :invalid_jwks_certificated}
+    _ -> {:error, :invalid_jwks_certificates}
   end
 end
