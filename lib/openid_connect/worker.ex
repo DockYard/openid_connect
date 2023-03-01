@@ -9,19 +9,29 @@ defmodule OpenIDConnect.Worker do
 
   @refresh_time 60 * 60 * 1000
 
-  def start_link(provider_configs, name \\ :openid_connect) do
-    GenServer.start_link(__MODULE__, provider_configs, name: name)
+  require Logger
+
+  def start_link(options, name \\ :openid_connect)
+
+  def start_link(config, name) do
+    GenServer.start_link(__MODULE__, config, name: name)
   end
 
   def init(:ignore) do
     :ignore
   end
 
+  def init({provider_configs, pid}) when is_pid(pid) do
+    {:ok, state} = init(provider_configs)
+    Process.send_after(pid, :ready, 1)
+    {:ok, state}
+  end
+
   def init(provider_configs) do
     state =
       Enum.into(provider_configs, %{}, fn {provider, config} ->
-        documents = update_documents(provider, config)
-        {provider, %{config: config, documents: documents}}
+        Process.send_after(self(), {:update_documents, provider}, 0)
+        {provider, %{config: config, documents: nil}}
       end)
 
     {:ok, state}
@@ -43,23 +53,34 @@ defmodule OpenIDConnect.Worker do
   end
 
   def handle_info({:update_documents, provider}, state) do
-    config = get_in(state, [provider, :config])
-    documents = update_documents(provider, config)
-
-    state = put_in(state, [provider, :documents], documents)
-
-    {:noreply, state}
+    with config <- get_in(state, [provider, :config]),
+         {:ok, documents} <- update_documents(provider, config) do
+      {:noreply, put_in(state, [provider, :documents], documents)}
+    else
+      _ -> {:noreply, state}
+    end
   end
 
   defp update_documents(provider, config) do
-    {:ok, %{remaining_lifetime: remaining_lifetime}} =
-      {:ok, documents} = OpenIDConnect.update_documents(config)
+    with {:ok, documents} <- OpenIDConnect.update_documents(config),
+         remaining_lifetime <- Map.get(documents, :remaining_lifetime),
+         refresh_time <- time_until_next_refresh(remaining_lifetime) do
+      Process.send_after(self(), {:update_documents, provider}, refresh_time)
+      {:ok, documents}
+    else
+      {:error, :update_documents, reason} = error ->
+        Logger.warn("Failed to update documents for provider #{provider}: #{message(reason)}")
+        Process.send_after(self(), {:update_documents, provider}, @refresh_time)
+        error
+    end
+  end
 
-    refresh_time = time_until_next_refresh(remaining_lifetime)
-
-    Process.send_after(self(), {:update_documents, provider}, refresh_time)
-
-    documents
+  defp message(reason) do
+    if Exception.exception?(reason) do
+      Exception.message(reason)
+    else
+      "#{inspect(reason)}"
+    end
   end
 
   defp time_until_next_refresh(nil), do: @refresh_time
