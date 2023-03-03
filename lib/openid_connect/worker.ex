@@ -9,7 +9,7 @@ defmodule OpenIDConnect.Worker do
 
   @refresh_time 60 * 60 * 1000
 
-  def start_link(provider_configs, name \\ :openid_connect) do
+  def start_link(provider_configs, name \\ :openid_connect) when is_list(provider_configs) do
     GenServer.start_link(__MODULE__, provider_configs, name: name)
   end
 
