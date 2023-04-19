@@ -185,6 +185,25 @@ defmodule OpenIDConnect do
     end
   end
 
+  @spec fetch_userinfo(provider, String.t(), name) :: success(map) | error(:fetch_userinfo)
+  @doc """
+  Fetches the information that the user has consented to share
+  """
+  def fetch_userinfo(provider, access_token, name \\ :openid_connect) do
+    uri = userinfo_uri(provider, name)
+    headers = [{"Authorization", "Bearer #{access_token}"}]
+
+    with {:ok, %HTTPoison.Response{status_code: status_code} = resp} when status_code in 200..299 <-
+           http_client().get(uri, headers, http_client_options()),
+         {:ok, json} <- Jason.decode(resp.body),
+         {:ok, json} <- assert_json(json) do
+      {:ok, json}
+    else
+      {:ok, resp} -> {:error, :fetch_tokens, resp}
+      {:error, reason} -> {:error, :fetch_tokens, reason}
+    end
+  end
+
   @spec update_documents(list) :: success(documents) | error(:update_documents)
   @doc """
   Requests updated documents from the provider
@@ -280,6 +299,10 @@ defmodule OpenIDConnect do
 
   defp access_token_uri(provider, name) do
     Map.get(discovery_document(provider, name), "token_endpoint")
+  end
+
+  defp userinfo_uri(provider, name) do
+    Map.get(discovery_document(provider, name), "userinfo_endpoint")
   end
 
   defp client_id(config) do
