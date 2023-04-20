@@ -260,6 +260,23 @@ defmodule OpenIDConnect do
   defp do_verify(%JOSE.JWK{} = jwk, token_alg, jwt),
     do: JOSE.JWS.verify_strict(jwk, [token_alg], jwt)
 
+  def fetch_userinfo(config, access_token) do
+    discovery_document_uri = config.discovery_document_uri
+
+    headers = [{"Authorization", "Bearer #{access_token}"}]
+
+    with {:ok, document} <- Document.fetch_document(discovery_document_uri),
+         request = Finch.build(:get, document.userinfo_endpoint, headers),
+         {:ok, %Finch.Response{body: response, status: status}} when status in 200..299 <-
+           Finch.request(request, OpenIDConnect.Finch),
+         {:ok, json} <- Jason.decode(response) do
+      {:ok, json}
+    else
+      {:ok, %Finch.Response{body: response, status: status}} -> {:error, {status, response}}
+      other -> other
+    end
+  end
+
   defp build_uri(uri, params) do
     query = URI.encode_query(params)
 

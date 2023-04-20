@@ -8,6 +8,7 @@ defmodule OpenIDConnect.Document do
             authorization_endpoint: nil,
             end_session_endpoint: nil,
             token_endpoint: nil,
+            userinfo_endpoint: nil,
             claims_supported: nil,
             response_types_supported: nil,
             jwks: nil,
@@ -116,6 +117,7 @@ defmodule OpenIDConnect.Document do
         authorization_endpoint: Map.fetch!(document_json, "authorization_endpoint"),
         end_session_endpoint: Map.get(document_json, "end_session_endpoint"),
         token_endpoint: Map.fetch!(document_json, "token_endpoint"),
+        userinfo_endpoint: Map.fetch!(document_json, "userinfo_endpoint"),
         response_types_supported:
           Map.get(document_json, "response_types_supported")
           |> Enum.map(fn response_type ->

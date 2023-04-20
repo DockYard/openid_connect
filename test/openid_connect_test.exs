@@ -410,4 +410,85 @@ defmodule OpenIDConnectTest do
                {:error, %Mint.TransportError{reason: :econnrefused}}
     end
   end
+
+  describe "fetch_userinfo/2" do
+    test "returns user info using endpoint from discovery document" do
+      bypass = Bypass.open()
+      test_pid = self()
+
+      {
+        userinfo_status_code,
+        userinfo_response_attrs,
+        userinfo_response_headers
+      } = load_fixture("google", "userinfo")
+
+      Bypass.expect_once(bypass, "GET", "/userinfo", fn conn ->
+        {:ok, body, conn} = Plug.Conn.read_body(conn)
+
+        conn =
+          Enum.reduce(userinfo_response_headers, conn, fn {k, v}, conn ->
+            Plug.Conn.put_resp_header(conn, k, v)
+          end)
+
+        send(test_pid, {:req, body, conn.req_headers})
+        Plug.Conn.resp(conn, userinfo_status_code, Jason.encode!(userinfo_response_attrs))
+      end)
+
+      userinfo_endpoint = "http://localhost:#{bypass.port}/userinfo"
+
+      {jwks, []} = Code.eval_file("test/fixtures/jwks/jwk.exs")
+      jwk = JOSE.JWK.from(jwks)
+      {_, jwk_pubkey} = JOSE.JWK.to_public_map(jwk)
+
+      {_bypass, uri} =
+        start_fixture("vault", %{
+          "jwks" => jwk_pubkey,
+          "userinfo_endpoint" => userinfo_endpoint
+        })
+
+      config = %{@config | discovery_document_uri: uri}
+
+      claims = %{"email" => userinfo_response_attrs["email"]}
+
+      {_alg, token} =
+        jwk
+        |> JOSE.JWS.sign(Jason.encode!(claims), %{"alg" => "RS256"})
+        |> JOSE.JWS.compact()
+
+      assert {:ok, userinfo} = fetch_userinfo(config, token)
+
+      assert userinfo == userinfo_response_attrs
+
+      assert_receive {:req, "", headers}
+      assert {"authorization", "Bearer #{token}"} in headers
+    end
+
+    test "returns error when userinfo endpoint is not available" do
+      bypass = Bypass.open()
+      userinfo_endpoint = "http://localhost:#{bypass.port}/userinfo"
+      Bypass.down(bypass)
+
+      {jwks, []} = Code.eval_file("test/fixtures/jwks/jwk.exs")
+      jwk = JOSE.JWK.from(jwks)
+      {_, jwk_pubkey} = JOSE.JWK.to_public_map(jwk)
+
+      {_bypass, uri} =
+        start_fixture("vault", %{
+          "jwks" => jwk_pubkey,
+          "userinfo_endpoint" => userinfo_endpoint
+        })
+
+      config = %{@config | discovery_document_uri: uri}
+
+      claims = %{"email" => "foo@john.com"}
+
+      {_alg, token} =
+        jwk
+        |> JOSE.JWS.sign(Jason.encode!(claims), %{"alg" => "RS256"})
+        |> JOSE.JWS.compact()
+
+      assert fetch_userinfo(config, token) ==
+               {:error, %Mint.TransportError{reason: :econnrefused}}
+    end
+  end
 end
