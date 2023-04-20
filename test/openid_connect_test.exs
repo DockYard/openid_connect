@@ -337,7 +337,11 @@ defmodule OpenIDConnectTest do
       {_bypass, uri} = start_fixture("vault", %{"jwks" => jwk_pubkey})
       config = %{@config | discovery_document_uri: uri}
 
-      claims = %{"email" => "brian@example.com"}
+      claims = %{
+        "email" => "brian@example.com",
+        "exp" => DateTime.utc_now() |> DateTime.add(10, :second) |> DateTime.to_unix(),
+        "aud" => config.client_id
+      }
 
       {_alg, token} =
         jwk
@@ -361,7 +365,11 @@ defmodule OpenIDConnectTest do
       {_bypass, uri} = start_fixture("vault", %{"jwks" => jwk_pubkey})
       config = %{@config | discovery_document_uri: uri}
 
-      claims = %{"email" => "brian@example.com"}
+      claims = %{
+        "email" => "brian@example.com",
+        "exp" => DateTime.utc_now() |> DateTime.add(10, :second) |> DateTime.to_unix(),
+        "aud" => config.client_id
+      }
 
       {_alg, token} =
         jwk
@@ -369,6 +377,108 @@ defmodule OpenIDConnectTest do
         |> JOSE.JWS.compact()
 
       assert verify(config, token) == {:ok, claims}
+
+      claims = %{
+        "email" => "brian@example.com",
+        "exp" => DateTime.utc_now() |> DateTime.add(-29, :second) |> DateTime.to_unix(),
+        "aud" => config.client_id
+      }
+
+      {_alg, token} =
+        jwk
+        |> JOSE.JWS.sign(Jason.encode!(claims), %{"alg" => "RS256"})
+        |> JOSE.JWS.compact()
+
+      assert verify(config, token) == {:ok, claims}
+    end
+
+    test "returns error when token is expired" do
+      {jwks, []} = Code.eval_file("test/fixtures/jwks/jwk.exs")
+      jwk = JOSE.JWK.from(jwks)
+      {_, jwk_pubkey} = JOSE.JWK.to_public_map(jwk)
+
+      {_bypass, uri} = start_fixture("vault", %{"jwks" => jwk_pubkey})
+      config = %{@config | discovery_document_uri: uri}
+
+      claims = %{
+        "email" => "brian@example.com",
+        "exp" => DateTime.utc_now() |> DateTime.add(-31, :second) |> DateTime.to_unix(),
+        "aud" => config.client_id
+      }
+
+      {_alg, token} =
+        jwk
+        |> JOSE.JWS.sign(Jason.encode!(claims), %{"alg" => "RS256"})
+        |> JOSE.JWS.compact()
+
+      assert verify(config, token) ==
+               {:error, {:invalid_jwt, "invalid exp claim: token has expired"}}
+    end
+
+    test "returns error when token expiration is not set" do
+      {jwks, []} = Code.eval_file("test/fixtures/jwks/jwk.exs")
+      jwk = JOSE.JWK.from(jwks)
+      {_, jwk_pubkey} = JOSE.JWK.to_public_map(jwk)
+
+      {_bypass, uri} = start_fixture("vault", %{"jwks" => jwk_pubkey})
+      config = %{@config | discovery_document_uri: uri}
+
+      claims = %{
+        "email" => "brian@example.com",
+        "aud" => config.client_id
+      }
+
+      {_alg, token} =
+        jwk
+        |> JOSE.JWS.sign(Jason.encode!(claims), %{"alg" => "RS256"})
+        |> JOSE.JWS.compact()
+
+      assert verify(config, token) == {:error, {:invalid_jwt, "invalid exp claim: missing"}}
+    end
+
+    test "returns error when aud claim is for another application" do
+      {jwks, []} = Code.eval_file("test/fixtures/jwks/jwk.exs")
+      jwk = JOSE.JWK.from(jwks)
+      {_, jwk_pubkey} = JOSE.JWK.to_public_map(jwk)
+
+      {_bypass, uri} = start_fixture("vault", %{"jwks" => jwk_pubkey})
+      config = %{@config | discovery_document_uri: uri}
+
+      claims = %{
+        "email" => "brian@example.com",
+        "exp" => DateTime.utc_now() |> DateTime.to_unix(),
+        "aud" => "foo"
+      }
+
+      {_alg, token} =
+        jwk
+        |> JOSE.JWS.sign(Jason.encode!(claims), %{"alg" => "RS256"})
+        |> JOSE.JWS.compact()
+
+      assert verify(config, token) ==
+               {:error,
+                {:invalid_jwt, "invalid aud claim: token is intended for another application"}}
+    end
+
+    test "returns error when aud claim is not set" do
+      {jwks, []} = Code.eval_file("test/fixtures/jwks/jwk.exs")
+      jwk = JOSE.JWK.from(jwks)
+      {_, jwk_pubkey} = JOSE.JWK.to_public_map(jwk)
+
+      {_bypass, uri} = start_fixture("vault", %{"jwks" => jwk_pubkey})
+      config = %{@config | discovery_document_uri: uri}
+
+      claims = %{
+        "email" => "brian@example.com",
+        "exp" => DateTime.utc_now() |> DateTime.to_unix()
+      }
+
+      {_alg, token} =
+        jwk
+        |> JOSE.JWS.sign(Jason.encode!(claims), %{"alg" => "RS256"})
+        |> JOSE.JWS.compact()
+
+      assert verify(config, token) == {:error, {:invalid_jwt, "invalid aud claim: missing"}}
     end
 
     test "returns error when token is altered" do

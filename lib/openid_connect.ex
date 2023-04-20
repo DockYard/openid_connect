@@ -52,7 +52,8 @@ defmodule OpenIDConnect do
           required(:client_secret) => client_secret(),
           required(:redirect_uri) => redirect_uri(),
           required(:response_type) => response_type(),
-          required(:scope) => scope()
+          required(:scope) => scope(),
+          optional(:leeway) => non_neg_integer()
         }
 
   @typedoc """
@@ -216,14 +217,19 @@ defmodule OpenIDConnect do
          {:ok, decoded_protected} <- Jason.decode(protected),
          {:ok, token_alg} <- Map.fetch(decoded_protected, "alg"),
          {:ok, document} <- Document.fetch_document(discovery_document_uri),
-         {true, claims, _jwk} <- do_verify(document.jwks, token_alg, jwt) do
-      Jason.decode(claims)
+         {true, claims, _jwk} <- verify_signature(document.jwks, token_alg, jwt),
+         {:ok, unverified_claims} <- Jason.decode(claims),
+         {:ok, verified_claims} <- verify_claims(unverified_claims, config) do
+      {:ok, verified_claims}
     else
       {:error, %Jason.DecodeError{}} ->
         {:error, {:invalid_jwt, "token claims did not contain a JSON payload"}}
 
       {:error, :peek_protected} ->
         {:error, {:invalid_jwt, "invalid token format"}}
+
+      {:error, invalid_claim, message} ->
+        {:error, {:invalid_jwt, "invalid #{invalid_claim} claim: #{message}"}}
 
       :error ->
         {:error, {:invalid_jwt, "no `alg` found in token"}}
@@ -245,11 +251,11 @@ defmodule OpenIDConnect do
     _ -> {:error, :peek_protected}
   end
 
-  defp do_verify(%JOSE.JWK{keys: {:jose_jwk_set, jwks}}, token_alg, jwt) do
+  defp verify_signature(%JOSE.JWK{keys: {:jose_jwk_set, jwks}}, token_alg, jwt) do
     Enum.find_value(jwks, {false, "{}", jwt}, fn jwk ->
       jwk
       |> JOSE.JWK.from()
-      |> do_verify(token_alg, jwt)
+      |> verify_signature(token_alg, jwt)
       |> case do
         {false, _claims, _jwt} -> false
         verified_claims -> verified_claims
@@ -257,8 +263,50 @@ defmodule OpenIDConnect do
     end)
   end
 
-  defp do_verify(%JOSE.JWK{} = jwk, token_alg, jwt),
+  defp verify_signature(%JOSE.JWK{} = jwk, token_alg, jwt),
     do: JOSE.JWS.verify_strict(jwk, [token_alg], jwt)
+
+  defp verify_claims(claims, config) do
+    leeway = Map.get(config, :leeway, 30)
+    client_id = Map.fetch!(config, :client_id)
+
+    with :ok <- verify_exp_claim(claims, leeway),
+         :ok <- verify_aud_claim(claims, client_id) do
+      {:ok, claims}
+    end
+  end
+
+  defp verify_exp_claim(claims, leeway) do
+    case Map.fetch(claims, "exp") do
+      {:ok, exp} when is_integer(exp) ->
+        epoch = DateTime.utc_now() |> DateTime.to_unix()
+
+        if epoch < exp + leeway,
+          do: :ok,
+          else: {:error, "exp", "token has expired"}
+
+      {:ok, _exp} ->
+        {:error, "exp", "is invalid"}
+
+      :error ->
+        {:error, "exp", "missing"}
+    end
+  end
+
+  defp verify_aud_claim(claims, expected_aud) do
+    case Map.fetch(claims, "aud") do
+      {:ok, aud} ->
+        if audience_matches?(aud, expected_aud),
+          do: :ok,
+          else: {:error, "aud", "token is intended for another application"}
+
+      :error ->
+        {:error, "aud", "missing"}
+    end
+  end
+
+  defp audience_matches?(aud, expected_aud) when is_list(aud), do: Enum.member?(aud, expected_aud)
+  defp audience_matches?(aud, expected_aud), do: aud === expected_aud
 
   def fetch_userinfo(config, access_token) do
     discovery_document_uri = config.discovery_document_uri
