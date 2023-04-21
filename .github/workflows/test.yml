@@ -59,17 +59,13 @@ jobs:
           SKIP=no-commit-to-branch pre-commit run --all-files
 
   unit-test:
-    runs-on: ubuntu-20.04
+    runs-on: ubuntu-22.04
     env:
       MIX_ENV: test
       GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
     strategy:
       matrix:
         include:
-          - elixir-version: "1.10"
-            otp-version: "22"
-          - elixir-version: "1.11"
-            otp-version: "23"
           - elixir-version: "1.12"
             otp-version: "24"
           - elixir-version: "1.13"
