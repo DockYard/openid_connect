@@ -17,7 +17,7 @@ defmodule OpenIDConnect.Mixfile do
       deps: deps(),
       docs: docs(),
       name: "OpenID Connect",
-      source_url: "https://github.com/firezone/openid_connect",
+      source_url: "https://github.com/DockYard/openid_connect",
       test_coverage: [tool: ExCoveralls],
       preferred_cli_env: [
         coveralls: :test,
