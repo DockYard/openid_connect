@@ -23,14 +23,14 @@ end
 Most of the functions expect a `config` map which means application developer should take care for the storage of those options, eg:
 
 ```elixir
-google_config = [
+google_config = %{
   discovery_document_uri: "https://accounts.google.com/.well-known/openid-configuration",
   client_id: "CLIENT_ID",
   client_secret: "CLIENT_SECRET",
   redirect_uri: "https://example.com/session",
   response_type: "code",
   scope: "openid email profile"
-]
+}
 
 authorization_uri(google_config)
 ```
