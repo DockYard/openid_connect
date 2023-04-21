@@ -3,7 +3,7 @@ on: [push, pull_request]
 
 jobs:
   static-analysis:
-    runs-on: ubuntu-20
+    runs-on: ubuntu-latest
     env:
       MIX_ENV: dev
       GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
@@ -59,7 +59,7 @@ jobs:
           SKIP=no-commit-to-branch pre-commit run --all-files
 
   unit-test:
-    runs-on: ubuntu-20
+    runs-on: ubuntu-20.04
     env:
       MIX_ENV: test
       GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
