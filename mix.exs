@@ -57,7 +57,7 @@ defmodule OpenIDConnect.Mixfile do
 
   defp deps do
     [
-      {:httpoison, "~> 1.2"},
+      {:httpoison, ">= 1.2.0"},
       {:jason, ">= 1.0.0"},
       {:jose, "~> 1.8"},
       {:earmark, "~> 1.2", only: :dev},
