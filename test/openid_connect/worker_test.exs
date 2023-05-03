@@ -53,6 +53,20 @@ defmodule OpenIDConnect.WorkerTest do
     assert get_in(config, [:google]) == google_config
   end
 
+  test "worker started using callback function can respond to a call for the config" do
+    mock_http_requests()
+
+    config = Application.get_env(:openid_connect, :providers)
+
+    {:ok, pid} = start_supervised({OpenIDConnect.Worker, {:callback, fn ->
+      config
+    end}})
+
+    google_config = GenServer.call(pid, {:config, :google})
+
+    assert get_in(config, [:google]) == google_config
+  end
+
   test "worker can respond to a call for a provider's discovery document" do
     mock_http_requests()
 
@@ -91,11 +105,33 @@ defmodule OpenIDConnect.WorkerTest do
     assert expected_jwk == jwk
   end
 
+  test "worker can start without internet connectivity, initialization is deferred" do
+    mock_http_internet_down()
+
+    config = Application.get_env(:openid_connect, :providers)
+    {:error, :update_documents, _} = OpenIDConnect.update_documents(config)
+
+    config = Application.get_env(:openid_connect, :providers)
+
+    {:ok, pid} = start_supervised({OpenIDConnect.Worker, config})
+    catch_exit(GenServer.call(pid, {:jwk, :google}))
+  end
+
   defp mock_http_requests do
     HTTPClientMock
     |> expect(:get, fn "https://accounts.google.com/.well-known/openid-configuration", _headers, _opts ->
       @google_document
     end)
     |> expect(:get, fn "https://www.googleapis.com/oauth2/v3/certs", _headers, _opts -> @google_certs end)
+  end
+
+  defp mock_http_internet_down do
+    HTTPClientMock
+    |> expect(:get, fn _, _, _ ->
+      {:error, %HTTPoison.Error{id: nil, reason: :nxdomain}}
+    end)
+    |> expect(:get, fn _, _, _ ->
+      {:error, %HTTPoison.Error{id: nil, reason: :nxdomain}}
+    end)
   end
 end
