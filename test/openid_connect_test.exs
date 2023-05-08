@@ -1,533 +1,604 @@
 defmodule OpenIDConnectTest do
-  use ExUnit.Case
-  import Mox
+  use ExUnit.Case, async: true
+  import OpenIDConnect.Fixtures
+  import OpenIDConnect
 
-  setup :set_mox_global
-  setup :verify_on_exit!
-  setup :set_jose_json_lib
+  @config %{
+    discovery_document_uri: nil,
+    client_id: "CLIENT_ID",
+    client_secret: "CLIENT_SECRET",
+    redirect_uri: "https://localhost/redirect_uri",
+    response_type: "code id_token token",
+    scope: "openid email profile"
+  }
 
-  @google_document Fixtures.load(:google, :discovery_document)
-  @google_certs Fixtures.load(:google, :certs)
+  describe "authorization_uri/2" do
+    test "generates authorization url with scope and response_type as binaries" do
+      {_bypass, uri} = start_fixture("google")
+      config = %{@config | discovery_document_uri: uri}
 
-  alias OpenIDConnect.{HTTPClientMock, MockWorker}
+      assert authorization_uri(config) ==
+               {:ok,
+                "https://accounts.google.com/o/oauth2/v2/auth?" <>
+                  "client_id=CLIENT_ID" <>
+                  "&redirect_uri=https%3A%2F%2Flocalhost%2Fredirect_uri" <>
+                  "&response_type=code+id_token+token" <>
+                  "&scope=openid+email+profile"}
+    end
 
-  test "README install version check" do
-    app = :openid_connect
+    test "generates authorization url with scope as enum" do
+      {_bypass, uri} = start_fixture("google")
+      config = %{@config | discovery_document_uri: uri, scope: ["openid", "email", "profile"]}
 
-    app_version = "#{Application.spec(app, :vsn)}"
-    readme = File.read!("README.md")
-    [_, readme_versions] = Regex.run(~r/{:#{app}, "(.+)"}/, readme)
+      assert authorization_uri(config) ==
+               {:ok,
+                "https://accounts.google.com/o/oauth2/v2/auth?" <>
+                  "client_id=CLIENT_ID" <>
+                  "&redirect_uri=https%3A%2F%2Flocalhost%2Fredirect_uri" <>
+                  "&response_type=code+id_token+token" <>
+                  "&scope=openid+email+profile"}
+    end
 
-    assert Version.match?(
-             app_version,
-             readme_versions
-           ),
-           """
-           Install version constraint in README.md does not match to current app version.
-           Current App Version: #{app_version}
-           Readme Install Versions: #{readme_versions}
-           """
+    test "generates authorization url with response_type as enum" do
+      {_bypass, uri} = start_fixture("google")
+
+      config = %{
+        @config
+        | discovery_document_uri: uri,
+          response_type: ["code", "id_token", "token"]
+      }
+
+      assert authorization_uri(config) ==
+               {:ok,
+                "https://accounts.google.com/o/oauth2/v2/auth?" <>
+                  "client_id=CLIENT_ID" <>
+                  "&redirect_uri=https%3A%2F%2Flocalhost%2Fredirect_uri" <>
+                  "&response_type=code+id_token+token" <>
+                  "&scope=openid+email+profile"}
+    end
+
+    test "returns error on empty scope" do
+      {_bypass, uri} = start_fixture("google")
+
+      config = %{@config | discovery_document_uri: uri, scope: nil}
+      assert authorization_uri(config) == {:error, :invalid_scope}
+
+      config = %{@config | discovery_document_uri: uri, scope: ""}
+      assert authorization_uri(config) == {:error, :invalid_scope}
+
+      config = %{@config | discovery_document_uri: uri, scope: []}
+      assert authorization_uri(config) == {:error, :invalid_scope}
+    end
+
+    test "returns error on empty response_type" do
+      {_bypass, uri} = start_fixture("google")
+
+      config = %{@config | discovery_document_uri: uri, response_type: nil}
+      assert authorization_uri(config) == {:error, :invalid_response_type}
+
+      config = %{@config | discovery_document_uri: uri, response_type: ""}
+      assert authorization_uri(config) == {:error, :invalid_response_type}
+
+      config = %{@config | discovery_document_uri: uri, response_type: []}
+      assert authorization_uri(config) == {:error, :invalid_response_type}
+    end
+
+    test "adds optional params" do
+      {_bypass, uri} = start_fixture("google")
+      config = %{@config | discovery_document_uri: uri}
+
+      assert authorization_uri(config, %{"state" => "foo"}) ==
+               {:ok,
+                "https://accounts.google.com/o/oauth2/v2/auth?" <>
+                  "client_id=CLIENT_ID" <>
+                  "&redirect_uri=https%3A%2F%2Flocalhost%2Fredirect_uri" <>
+                  "&response_type=code+id_token+token" <>
+                  "&scope=openid+email+profile" <>
+                  "&state=foo"}
+    end
+
+    test "params can override default values" do
+      {_bypass, uri} = start_fixture("google")
+      config = %{@config | discovery_document_uri: uri}
+
+      assert authorization_uri(config, %{client_id: "foo"}) ==
+               {:ok,
+                "https://accounts.google.com/o/oauth2/v2/auth?" <>
+                  "client_id=foo" <>
+                  "&redirect_uri=https%3A%2F%2Flocalhost%2Fredirect_uri" <>
+                  "&response_type=code+id_token+token" <>
+                  "&scope=openid+email+profile"}
+    end
+
+    test "returns error when document is not available" do
+      bypass = Bypass.open()
+      uri = "http://localhost:#{bypass.port}/.well-known/discovery-document.json"
+      Bypass.down(bypass)
+
+      config = %{@config | discovery_document_uri: uri}
+
+      assert authorization_uri(config, %{client_id: "foo"}) ==
+               {:error, %Mint.TransportError{reason: :econnrefused}}
+    end
   end
 
-  describe "update_documents" do
-    test "when the new documents are retrieved successfully" do
-      config = [
-        discovery_document_uri: "https://accounts.google.com/.well-known/openid-configuration"
-      ]
+  describe "end_session_uri/2" do
+    test "returns error when provider doesn't specify end_session_endpoint" do
+      {_bypass, uri} = start_fixture("google")
+      config = %{@config | discovery_document_uri: uri}
 
-      HTTPClientMock
-      |> expect(:get, fn "https://accounts.google.com/.well-known/openid-configuration",
-                         _headers,
-                         _opts ->
-        @google_document
+      assert end_session_uri(config) == {:error, :endpoint_not_set}
+    end
+
+    test "generates authorization url" do
+      {_bypass, uri} = start_fixture("okta")
+      config = %{@config | discovery_document_uri: uri}
+
+      assert end_session_uri(config) ==
+               {:ok, "https://common.okta.com/oauth2/v1/logout?client_id=CLIENT_ID"}
+    end
+
+    test "adds optional params" do
+      {_bypass, uri} = start_fixture("okta")
+      config = %{@config | discovery_document_uri: uri}
+
+      assert end_session_uri(config, %{"state" => "foo"}) ==
+               {:ok, "https://common.okta.com/oauth2/v1/logout?client_id=CLIENT_ID&state=foo"}
+    end
+
+    test "params can override default values" do
+      {_bypass, uri} = start_fixture("okta")
+      config = %{@config | discovery_document_uri: uri}
+
+      assert end_session_uri(config, %{client_id: "foo"}) ==
+               {:ok, "https://common.okta.com/oauth2/v1/logout?client_id=foo"}
+    end
+
+    test "returns error when document is not available" do
+      bypass = Bypass.open()
+      uri = "http://localhost:#{bypass.port}/.well-known/discovery-document.json"
+      Bypass.down(bypass)
+
+      config = %{@config | discovery_document_uri: uri}
+
+      assert end_session_uri(config, %{client_id: "foo"}) ==
+               {:error, %Mint.TransportError{reason: :econnrefused}}
+    end
+  end
+
+  describe "fetch_tokens/2" do
+    test "fetches the token from OAuth token endpoint" do
+      bypass = Bypass.open()
+      test_pid = self()
+
+      token_response_attrs = %{
+        "access_token" => "ACCESS_TOKEN",
+        "id_token" => "ID_TOKEN",
+        "refresh_token" => "REFRESH_TOKEN"
+      }
+
+      Bypass.expect_once(bypass, "POST", "/token", fn conn ->
+        {:ok, body, conn} = Plug.Conn.read_body(conn)
+        send(test_pid, {:req, body})
+        Plug.Conn.resp(conn, 200, Jason.encode!(token_response_attrs))
       end)
-      |> expect(:get, fn "https://www.googleapis.com/oauth2/v3/certs", _headers, _opts ->
-        @google_certs
+
+      token_endpoint = "http://localhost:#{bypass.port}/token"
+      {_bypass, uri} = start_fixture("google", %{token_endpoint: token_endpoint})
+      config = %{@config | discovery_document_uri: uri}
+
+      assert fetch_tokens(config, %{code: "1234", id_token: "abcd"}) ==
+               {:ok, token_response_attrs}
+
+      assert_receive {:req, body}
+
+      assert body ==
+               "client_id=CLIENT_ID" <>
+                 "&client_secret=CLIENT_SECRET" <>
+                 "&code=1234" <>
+                 "&grant_type=authorization_code" <>
+                 "&id_token=abcd" <>
+                 "&redirect_uri=https%3A%2F%2Flocalhost%2Fredirect_uri"
+    end
+
+    test "allows to override the default params" do
+      bypass = Bypass.open()
+      test_pid = self()
+
+      token_response_attrs = %{
+        "access_token" => "ACCESS_TOKEN",
+        "id_token" => "ID_TOKEN",
+        "refresh_token" => "REFRESH_TOKEN"
+      }
+
+      Bypass.expect_once(bypass, "POST", "/token", fn conn ->
+        {:ok, body, conn} = Plug.Conn.read_body(conn)
+        send(test_pid, {:req, body})
+        Plug.Conn.resp(conn, 200, Jason.encode!(token_response_attrs))
       end)
 
-      expected_document =
-        @google_document
-        |> elem(1)
-        |> Map.get(:body)
-        |> Jason.decode!()
-        |> OpenIDConnect.normalize_discovery_document()
+      token_endpoint = "http://localhost:#{bypass.port}/token"
+      {_bypass, uri} = start_fixture("google", %{token_endpoint: token_endpoint})
+      config = %{@config | discovery_document_uri: uri}
 
-      expected_jwk =
-        @google_certs
-        |> elem(1)
-        |> Map.get(:body)
-        |> Jason.decode!()
+      fetch_tokens(config, %{client_id: "foo"})
+
+      assert_receive {:req, body}
+
+      assert body ==
+               "client_id=foo" <>
+                 "&client_secret=CLIENT_SECRET" <>
+                 "&grant_type=authorization_code" <>
+                 "&redirect_uri=https%3A%2F%2Flocalhost%2Fredirect_uri"
+    end
+
+    test "returns error when token endpoint is not available" do
+      bypass = Bypass.open()
+      Bypass.down(bypass)
+      token_endpoint = "http://localhost:#{bypass.port}/token"
+      {_bypass, uri} = start_fixture("google", %{token_endpoint: token_endpoint})
+      config = %{@config | discovery_document_uri: uri}
+
+      assert fetch_tokens(config, %{client_id: "foo"}) ==
+               {:error, %Mint.TransportError{reason: :econnrefused}}
+    end
+
+    test "returns error when token endpoint is responds with non 2XX status code" do
+      bypass = Bypass.open()
+
+      Bypass.expect_once(bypass, "POST", "/token", fn conn ->
+        Plug.Conn.resp(conn, 401, Jason.encode!(%{"error" => "unauthorized"}))
+      end)
+
+      token_endpoint = "http://localhost:#{bypass.port}/token"
+      {_bypass, uri} = start_fixture("google", %{token_endpoint: token_endpoint})
+      config = %{@config | discovery_document_uri: uri}
+
+      assert fetch_tokens(config, %{client_id: "foo"}) ==
+               {:error, {401, "{\"error\":\"unauthorized\"}"}}
+    end
+
+    test "returns error when real provider token endpoint is responded with invalid code" do
+      {_bypass, uri} = start_fixture("google")
+      config = %{@config | discovery_document_uri: uri}
+      assert {:error, {401, resp}} = fetch_tokens(config, %{code: "foo"})
+      resp_json = Jason.decode!(resp)
+
+      assert resp_json == %{
+               "error" => "invalid_client",
+               "error_description" => "The OAuth client was not found."
+             }
+
+      for provider <- ["auth0", "okta", "onelogin"] do
+        {_bypass, uri} = start_fixture(provider)
+        config = %{@config | discovery_document_uri: uri}
+        assert {:error, {status, _resp}} = fetch_tokens(config, %{code: "foo"})
+        assert status in 400..499
+      end
+    end
+
+    test "returns error when document is not available" do
+      bypass = Bypass.open()
+      uri = "http://localhost:#{bypass.port}/.well-known/discovery-document.json"
+      Bypass.down(bypass)
+
+      config = %{@config | discovery_document_uri: uri}
+
+      assert fetch_tokens(config, %{code: "foo"}) ==
+               {:error, %Mint.TransportError{reason: :econnrefused}}
+    end
+  end
+
+  describe "verify/2" do
+    test "returns error when token has invalid format" do
+      assert verify(@config, "foo") ==
+               {:error, {:invalid_jwt, "invalid token format"}}
+    end
+
+    test "returns error when encoded token is not a JSON map" do
+      token =
+        ["fail", "fail", "fail"]
+        |> Enum.map_join(".", fn header -> Base.encode64(header) end)
+
+      assert verify(@config, token) ==
+               {:error, {:invalid_jwt, "token claims did not contain a JSON payload"}}
+    end
+
+    test "returns error when encoded token is doesn't have valid 'alg'" do
+      token =
+        ["{}", "{}", "{}"]
+        |> Enum.map_join(".", fn header -> Base.encode64(header) end)
+
+      assert verify(@config, token) ==
+               {:error, {:invalid_jwt, "no `alg` found in token"}}
+    end
+
+    test "returns error when token is valid but invalid for a provider" do
+      {_bypass, uri} = start_fixture("okta")
+      config = %{@config | discovery_document_uri: uri}
+      {jwk, []} = Code.eval_file("test/fixtures/jwks/jwk.exs")
+
+      claims = %{"email" => "brian@example.com"}
+
+      {_alg, token} =
+        jwk
+        |> JOSE.JWK.from()
+        |> JOSE.JWS.sign(Jason.encode!(claims), %{"alg" => "RS256"})
+        |> JOSE.JWS.compact()
+
+      assert verify(config, token) == {:error, {:invalid_jwt, "verification failed"}}
+    end
+
+    test "returns claims when encoded token is valid" do
+      {jwks, []} = Code.eval_file("test/fixtures/jwks/jwk.exs")
+      jwk = JOSE.JWK.from(jwks)
+      {_, jwk_pubkey} = JOSE.JWK.to_public_map(jwk)
+
+      {_bypass, uri} = start_fixture("vault", %{"jwks" => jwk_pubkey})
+      config = %{@config | discovery_document_uri: uri}
+
+      claims = %{
+        "email" => "brian@example.com",
+        "exp" => DateTime.utc_now() |> DateTime.add(10, :second) |> DateTime.to_unix(),
+        "aud" => config.client_id
+      }
+
+      {_alg, token} =
+        jwk
+        |> JOSE.JWS.sign(Jason.encode!(claims), %{"alg" => "RS256"})
+        |> JOSE.JWS.compact()
+
+      assert verify(config, token) == {:ok, claims}
+    end
+
+    test "returns claims when encoded token is valid using multiple keys" do
+      {jwks, []} = Code.eval_file("test/fixtures/jwks/jwks.exs")
+
+      jwk =
+        jwks
+        |> Map.fetch!("keys")
+        |> List.first()
         |> JOSE.JWK.from()
 
-      {:ok,
-       %{
-         discovery_document: discovery_document,
-         jwk: jwk,
-         remaining_lifetime: remaining_lifetime
-       }} = OpenIDConnect.update_documents(config)
+      {_, jwk_pubkey} = JOSE.JWK.to_public_map(jwk)
 
-      assert expected_document == discovery_document
-      assert expected_jwk == jwk
-      assert remaining_lifetime == 16750
+      {_bypass, uri} = start_fixture("vault", %{"jwks" => jwk_pubkey})
+      config = %{@config | discovery_document_uri: uri}
+
+      claims = %{
+        "email" => "brian@example.com",
+        "exp" => DateTime.utc_now() |> DateTime.add(10, :second) |> DateTime.to_unix(),
+        "aud" => config.client_id
+      }
+
+      {_alg, token} =
+        jwk
+        |> JOSE.JWS.sign(Jason.encode!(claims), %{"alg" => "RS256"})
+        |> JOSE.JWS.compact()
+
+      assert verify(config, token) == {:ok, claims}
+
+      claims = %{
+        "email" => "brian@example.com",
+        "exp" => DateTime.utc_now() |> DateTime.add(-29, :second) |> DateTime.to_unix(),
+        "aud" => config.client_id
+      }
+
+      {_alg, token} =
+        jwk
+        |> JOSE.JWS.sign(Jason.encode!(claims), %{"alg" => "RS256"})
+        |> JOSE.JWS.compact()
+
+      assert verify(config, token) == {:ok, claims}
     end
 
-    test "fails during open id configuration document with HTTPoison error" do
-      config = [
-        discovery_document_uri: "https://accounts.google.com/.well-known/openid-configuration"
-      ]
+    test "returns error when token is expired" do
+      {jwks, []} = Code.eval_file("test/fixtures/jwks/jwk.exs")
+      jwk = JOSE.JWK.from(jwks)
+      {_, jwk_pubkey} = JOSE.JWK.to_public_map(jwk)
 
-      expect(
-        HTTPClientMock,
-        :get,
-        fn "https://accounts.google.com/.well-known/openid-configuration", _headers, _opts ->
-          {:ok, %HTTPoison.Error{id: nil, reason: :nxdomain}}
-        end
-      )
+      {_bypass, uri} = start_fixture("vault", %{"jwks" => jwk_pubkey})
+      config = %{@config | discovery_document_uri: uri}
 
-      assert OpenIDConnect.update_documents(config) ==
-               {:error, :update_documents, %HTTPoison.Error{id: nil, reason: :nxdomain}}
+      claims = %{
+        "email" => "brian@example.com",
+        "exp" => DateTime.utc_now() |> DateTime.add(-31, :second) |> DateTime.to_unix(),
+        "aud" => config.client_id
+      }
+
+      {_alg, token} =
+        jwk
+        |> JOSE.JWS.sign(Jason.encode!(claims), %{"alg" => "RS256"})
+        |> JOSE.JWS.compact()
+
+      assert verify(config, token) ==
+               {:error, {:invalid_jwt, "invalid exp claim: token has expired"}}
     end
 
-    test "non-200 response for open id configuration document" do
-      config = [
-        discovery_document_uri: "https://accounts.google.com/.well-known/openid-configuration"
-      ]
+    test "returns error when token expiration is not set" do
+      {jwks, []} = Code.eval_file("test/fixtures/jwks/jwk.exs")
+      jwk = JOSE.JWK.from(jwks)
+      {_, jwk_pubkey} = JOSE.JWK.to_public_map(jwk)
 
-      expect(
-        HTTPClientMock,
-        :get,
-        fn "https://accounts.google.com/.well-known/openid-configuration", _headers, _opts ->
-          {:ok, %HTTPoison.Response{status_code: 404}}
-        end
-      )
+      {_bypass, uri} = start_fixture("vault", %{"jwks" => jwk_pubkey})
+      config = %{@config | discovery_document_uri: uri}
 
-      assert OpenIDConnect.update_documents(config) ==
-               {:error, :update_documents, %HTTPoison.Response{status_code: 404}}
+      claims = %{
+        "email" => "brian@example.com",
+        "aud" => config.client_id
+      }
+
+      {_alg, token} =
+        jwk
+        |> JOSE.JWS.sign(Jason.encode!(claims), %{"alg" => "RS256"})
+        |> JOSE.JWS.compact()
+
+      assert verify(config, token) == {:error, {:invalid_jwt, "invalid exp claim: missing"}}
     end
 
-    test "fails during certs with HTTPoison error" do
-      config = [
-        discovery_document_uri: "https://accounts.google.com/.well-known/openid-configuration"
-      ]
+    test "returns error when aud claim is for another application" do
+      {jwks, []} = Code.eval_file("test/fixtures/jwks/jwk.exs")
+      jwk = JOSE.JWK.from(jwks)
+      {_, jwk_pubkey} = JOSE.JWK.to_public_map(jwk)
 
-      HTTPClientMock
-      |> expect(:get, fn "https://accounts.google.com/.well-known/openid-configuration",
-                         _headers,
-                         _opts ->
-        @google_document
-      end)
-      |> expect(:get, fn "https://www.googleapis.com/oauth2/v3/certs", _headers, _opts ->
-        {:ok, %HTTPoison.Error{reason: :nxdomain}}
-      end)
+      {_bypass, uri} = start_fixture("vault", %{"jwks" => jwk_pubkey})
+      config = %{@config | discovery_document_uri: uri}
 
-      assert OpenIDConnect.update_documents(config) ==
-               {:error, :update_documents, %HTTPoison.Error{id: nil, reason: :nxdomain}}
+      claims = %{
+        "email" => "brian@example.com",
+        "exp" => DateTime.utc_now() |> DateTime.to_unix(),
+        "aud" => "foo"
+      }
+
+      {_alg, token} =
+        jwk
+        |> JOSE.JWS.sign(Jason.encode!(claims), %{"alg" => "RS256"})
+        |> JOSE.JWS.compact()
+
+      assert verify(config, token) ==
+               {:error,
+                {:invalid_jwt, "invalid aud claim: token is intended for another application"}}
     end
 
-    test "non-200 response for certs" do
-      config = [
-        discovery_document_uri: "https://accounts.google.com/.well-known/openid-configuration"
-      ]
+    test "returns error when aud claim is not set" do
+      {jwks, []} = Code.eval_file("test/fixtures/jwks/jwk.exs")
+      jwk = JOSE.JWK.from(jwks)
+      {_, jwk_pubkey} = JOSE.JWK.to_public_map(jwk)
 
-      HTTPClientMock
-      |> expect(:get, fn "https://accounts.google.com/.well-known/openid-configuration",
-                         _headers,
-                         _opts ->
-        @google_document
-      end)
-      |> expect(:get, fn "https://www.googleapis.com/oauth2/v3/certs", _headers, _opts ->
-        {:ok, %HTTPoison.Response{status_code: 404}}
-      end)
+      {_bypass, uri} = start_fixture("vault", %{"jwks" => jwk_pubkey})
+      config = %{@config | discovery_document_uri: uri}
 
-      assert OpenIDConnect.update_documents(config) ==
-               {:error, :update_documents, %HTTPoison.Response{status_code: 404}}
+      claims = %{
+        "email" => "brian@example.com",
+        "exp" => DateTime.utc_now() |> DateTime.to_unix()
+      }
+
+      {_alg, token} =
+        jwk
+        |> JOSE.JWS.sign(Jason.encode!(claims), %{"alg" => "RS256"})
+        |> JOSE.JWS.compact()
+
+      assert verify(config, token) == {:error, {:invalid_jwt, "invalid aud claim: missing"}}
     end
 
-    test "with HTTP client options" do
-      config = [
-        discovery_document_uri: "https://accounts.google.com/.well-known/openid-configuration"
-      ]
+    test "returns error when token is altered" do
+      {jwks, []} = Code.eval_file("test/fixtures/jwks/jwk.exs")
+      jwk = JOSE.JWK.from(jwks)
+      {_, jwk_pubkey} = JOSE.JWK.to_public_map(jwk)
 
-      opts = [ssl: [{:verify, :verify_none}]]
-      Application.put_env(:openid_connect, :http_client_options, opts)
+      {_bypass, uri} = start_fixture("vault", %{"jwks" => jwk_pubkey})
+      config = %{@config | discovery_document_uri: uri}
 
-      HTTPClientMock
-      |> expect(:get, fn
-        "https://accounts.google.com/.well-known/openid-configuration", _headers, ^opts ->
-          @google_document
-      end)
-      |> expect(:get, fn "https://www.googleapis.com/oauth2/v3/certs", _headers, ^opts ->
-        {:ok, %HTTPoison.Response{status_code: 404}}
-      end)
+      claims = %{"email" => "brian@example.com"}
 
-      assert OpenIDConnect.update_documents(config) ==
-               {:error, :update_documents, %HTTPoison.Response{status_code: 404}}
-    end
-  end
+      {_alg, token} =
+        jwk
+        |> JOSE.JWS.sign(Jason.encode!(claims), %{"alg" => "RS256"})
+        |> JOSE.JWS.compact()
 
-  describe "normalize_discovery_document" do
-    test "defaults to empty list if claims_supported is missing" do
-      document_without_claims =
-        @google_document
-        |> elem(1)
-        |> Map.get(:body)
-        |> Jason.decode!()
-        |> Map.delete("claims_supported")
-
-      normalized_claims =
-        document_without_claims
-        |> OpenIDConnect.normalize_discovery_document()
-        |> Map.get("claims_supported")
-
-      assert normalized_claims == []
-    end
-  end
-
-  describe "generating the authorization uri" do
-    test "with default worker name" do
-      {:ok, pid} = GenServer.start_link(MockWorker, [], name: :openid_connect)
-
-      try do
-        expected =
-          "https://accounts.google.com/o/oauth2/v2/auth?client_id=CLIENT_ID_1&redirect_uri=https%3A%2F%2Fdev.example.com%3A4200%2Fsession&response_type=code+id_token+token&scope=openid+email+profile"
-
-        assert OpenIDConnect.authorization_uri(:google) == expected
-      after
-        GenServer.stop(pid)
-      end
+      assert verify(config, token <> ":)") == {:error, {:invalid_jwt, "verification failed"}}
     end
 
-    test "with optional params" do
-      {:ok, pid} = GenServer.start_link(MockWorker, [], name: :openid_connect)
+    test "returns error when document is not available" do
+      {jwks, []} = Code.eval_file("test/fixtures/jwks/jwk.exs")
 
-      try do
-        expected =
-          "https://accounts.google.com/o/oauth2/v2/auth?client_id=CLIENT_ID_1&redirect_uri=https%3A%2F%2Fdev.example.com%3A4200%2Fsession&response_type=code+id_token+token&scope=openid+email+profile&hd=dockyard.com"
+      bypass = Bypass.open()
+      uri = "http://localhost:#{bypass.port}/.well-known/discovery-document.json"
+      Bypass.down(bypass)
 
-        assert OpenIDConnect.authorization_uri(:google, %{"hd" => "dockyard.com"}) == expected
-      after
-        GenServer.stop(pid)
-      end
-    end
+      config = %{@config | discovery_document_uri: uri}
 
-    test "with overridden params" do
-      {:ok, pid} = GenServer.start_link(MockWorker, [], name: :openid_connect)
+      claims = %{"email" => "brian@example.com"}
 
-      try do
-        expected =
-          "https://accounts.google.com/o/oauth2/v2/auth?client_id=CLIENT_ID_1&redirect_uri=https%3A%2F%2Fdev.example.com%3A4200%2Fsession&response_type=code+id_token+token&scope=something+else"
+      {_alg, token} =
+        jwks
+        |> JOSE.JWK.from()
+        |> JOSE.JWS.sign(Jason.encode!(claims), %{"alg" => "RS256"})
+        |> JOSE.JWS.compact()
 
-        assert OpenIDConnect.authorization_uri(:google, %{scope: "something else"}) == expected
-      after
-        GenServer.stop(pid)
-      end
-    end
-
-    test "with custom worker name" do
-      {:ok, pid} = GenServer.start_link(MockWorker, [], name: :other_openid_worker)
-
-      try do
-        expected =
-          "https://accounts.google.com/o/oauth2/v2/auth?client_id=CLIENT_ID_1&redirect_uri=https%3A%2F%2Fdev.example.com%3A4200%2Fsession&response_type=code+id_token+token&scope=openid+email+profile"
-
-        assert OpenIDConnect.authorization_uri(:google, %{}, :other_openid_worker) == expected
-      after
-        GenServer.stop(pid)
-      end
+      assert verify(config, token) ==
+               {:error, %Mint.TransportError{reason: :econnrefused}}
     end
   end
 
-  describe "fetching tokens" do
-    test "when token fetch is successful" do
-      {:ok, pid} = GenServer.start_link(MockWorker, [], name: :openid_connect)
+  describe "fetch_userinfo/2" do
+    test "returns user info using endpoint from discovery document" do
+      bypass = Bypass.open()
+      test_pid = self()
 
-      config = GenServer.call(:openid_connect, {:config, :google})
+      {
+        userinfo_status_code,
+        userinfo_response_attrs,
+        userinfo_response_headers
+      } = load_fixture("google", "userinfo")
 
-      form_body = [
-        client_id: config[:client_id],
-        client_secret: config[:client_secret],
-        code: "1234",
-        grant_type: "authorization_code",
-        redirect_uri: config[:redirect_uri]
-      ]
+      Bypass.expect_once(bypass, "GET", "/userinfo", fn conn ->
+        {:ok, body, conn} = Plug.Conn.read_body(conn)
 
-      try do
-        expect(HTTPClientMock, :post, fn "https://www.googleapis.com/oauth2/v4/token",
-                                         {:form, ^form_body},
-                                         _headers,
-                                         _opts ->
-          {:ok, %HTTPoison.Response{status_code: 200, body: Jason.encode!(%{})}}
-        end)
+        conn =
+          Enum.reduce(userinfo_response_headers, conn, fn {k, v}, conn ->
+            Plug.Conn.put_resp_header(conn, k, v)
+          end)
 
-        {:ok, body} = OpenIDConnect.fetch_tokens(:google, %{code: "1234"})
+        send(test_pid, {:req, body, conn.req_headers})
+        Plug.Conn.resp(conn, userinfo_status_code, Jason.encode!(userinfo_response_attrs))
+      end)
 
-        assert body == %{}
-      after
-        GenServer.stop(pid)
-      end
+      userinfo_endpoint = "http://localhost:#{bypass.port}/userinfo"
+
+      {jwks, []} = Code.eval_file("test/fixtures/jwks/jwk.exs")
+      jwk = JOSE.JWK.from(jwks)
+      {_, jwk_pubkey} = JOSE.JWK.to_public_map(jwk)
+
+      {_bypass, uri} =
+        start_fixture("vault", %{
+          "jwks" => jwk_pubkey,
+          "userinfo_endpoint" => userinfo_endpoint
+        })
+
+      config = %{@config | discovery_document_uri: uri}
+
+      claims = %{"email" => userinfo_response_attrs["email"]}
+
+      {_alg, token} =
+        jwk
+        |> JOSE.JWS.sign(Jason.encode!(claims), %{"alg" => "RS256"})
+        |> JOSE.JWS.compact()
+
+      assert {:ok, userinfo} = fetch_userinfo(config, token)
+
+      assert userinfo == userinfo_response_attrs
+
+      assert_receive {:req, "", headers}
+      assert {"authorization", "Bearer #{token}"} in headers
     end
 
-    test "when token fetch is successful with a different GenServer name" do
-      {:ok, pid} = GenServer.start_link(MockWorker, [], name: :other_openid_connect)
+    test "returns error when userinfo endpoint is not available" do
+      bypass = Bypass.open()
+      userinfo_endpoint = "http://localhost:#{bypass.port}/userinfo"
+      Bypass.down(bypass)
 
-      config = GenServer.call(:other_openid_connect, {:config, :google})
+      {jwks, []} = Code.eval_file("test/fixtures/jwks/jwk.exs")
+      jwk = JOSE.JWK.from(jwks)
+      {_, jwk_pubkey} = JOSE.JWK.to_public_map(jwk)
 
-      form_body = [
-        client_id: config[:client_id],
-        client_secret: config[:client_secret],
-        code: "1234",
-        grant_type: "authorization_code",
-        id_token: "abcd",
-        redirect_uri: config[:redirect_uri]
-      ]
+      {_bypass, uri} =
+        start_fixture("vault", %{
+          "jwks" => jwk_pubkey,
+          "userinfo_endpoint" => userinfo_endpoint
+        })
 
-      try do
-        expect(HTTPClientMock, :post, fn "https://www.googleapis.com/oauth2/v4/token",
-                                         {:form, ^form_body},
-                                         _headers,
-                                         _opts ->
-          {:ok, %HTTPoison.Response{status_code: 200, body: Jason.encode!(%{})}}
-        end)
+      config = %{@config | discovery_document_uri: uri}
 
-        {:ok, body} =
-          OpenIDConnect.fetch_tokens(
-            :google,
-            %{code: "1234", id_token: "abcd"},
-            :other_openid_connect
-          )
+      claims = %{"email" => "foo@john.com"}
 
-        assert body == %{}
-      after
-        GenServer.stop(pid)
-      end
+      {_alg, token} =
+        jwk
+        |> JOSE.JWS.sign(Jason.encode!(claims), %{"alg" => "RS256"})
+        |> JOSE.JWS.compact()
+
+      assert fetch_userinfo(config, token) ==
+               {:error, %Mint.TransportError{reason: :econnrefused}}
     end
-
-    test "when params are overridden" do
-      {:ok, pid} = GenServer.start_link(MockWorker, [], name: :openid_connect)
-
-      config = GenServer.call(:openid_connect, {:config, :google})
-
-      form_body = [
-        client_id: config[:client_id],
-        client_secret: config[:client_secret],
-        grant_type: "refresh_token",
-        redirect_uri: config[:redirect_uri]
-      ]
-
-      try do
-        expect(HTTPClientMock, :post, fn "https://www.googleapis.com/oauth2/v4/token",
-                                         {:form, ^form_body},
-                                         _headers,
-                                         _opts ->
-          {:ok, %HTTPoison.Response{status_code: 200, body: Jason.encode!(%{})}}
-        end)
-
-        {:ok, body} = OpenIDConnect.fetch_tokens(:google, %{grant_type: "refresh_token"})
-
-        assert body == %{}
-      after
-        GenServer.stop(pid)
-      end
-    end
-
-    test "when token fetch fails with bad domain" do
-      {:ok, pid} = GenServer.start_link(MockWorker, [], name: :openid_connect)
-
-      http_error = %HTTPoison.Error{reason: :nxdomain}
-
-      try do
-        expect(HTTPClientMock, :post, fn "https://www.googleapis.com/oauth2/v4/token",
-                                         {:form, _form_body},
-                                         _headers,
-                                         _opts ->
-          {:ok, http_error}
-        end)
-
-        resp = OpenIDConnect.fetch_tokens(:google, %{code: "1234"})
-
-        assert resp == {:error, :fetch_tokens, http_error}
-      after
-        GenServer.stop(pid)
-      end
-    end
-
-    test "when token fetch doesn't return a 200 response" do
-      {:ok, pid} = GenServer.start_link(MockWorker, [], name: :openid_connect)
-
-      http_error = %HTTPoison.Response{status_code: 404}
-
-      try do
-        expect(HTTPClientMock, :post, fn "https://www.googleapis.com/oauth2/v4/token",
-                                         {:form, _form_body},
-                                         _headers,
-                                         _opts ->
-          {:ok, http_error}
-        end)
-
-        resp = OpenIDConnect.fetch_tokens(:google, %{code: "1234"})
-
-        assert resp == {:error, :fetch_tokens, http_error}
-      after
-        GenServer.stop(pid)
-      end
-    end
-  end
-
-  describe "jwt verification" do
-    test "is successful" do
-      {:ok, pid} = GenServer.start_link(MockWorker, [], name: :openid_connect)
-
-      try do
-        {jwk, []} = Code.eval_file("test/fixtures/rsa/jwk1.exs")
-        :ok = GenServer.call(pid, {:put, :jwk, JOSE.JWK.from(jwk)})
-
-        claims = %{"email" => "brian@example.com"}
-
-        {_alg, token} =
-          jwk
-          |> JOSE.JWK.from()
-          |> JOSE.JWS.sign(Jason.encode!(claims), %{"alg" => "RS256"})
-          |> JOSE.JWS.compact()
-
-        result = OpenIDConnect.verify(:google, token)
-        assert result == {:ok, claims}
-      after
-        GenServer.stop(pid)
-      end
-    end
-
-    test "is successful with multiple jwks" do
-      {:ok, pid} = GenServer.start_link(MockWorker, [], name: :openid_connect)
-
-      try do
-        {jwk, []} = Code.eval_file("test/fixtures/rsa/jwks.exs")
-        :ok = GenServer.call(pid, {:put, :jwk, JOSE.JWK.from(jwk)})
-
-        claims = %{"email" => "brian@example.com"}
-
-        {_alg, token} =
-          jwk
-          |> Map.get("keys")
-          |> List.last()
-          |> JOSE.JWK.from()
-          |> JOSE.JWS.sign(Jason.encode!(claims), %{"alg" => "RS256"})
-          |> JOSE.JWS.compact()
-
-        result = OpenIDConnect.verify(:google, token)
-        assert result == {:ok, claims}
-      after
-        GenServer.stop(pid)
-      end
-    end
-
-    test "fails with invalid token format" do
-      {:ok, pid} = GenServer.start_link(MockWorker, [], name: :openid_connect)
-
-      try do
-        {jwk, []} = Code.eval_file("test/fixtures/rsa/jwk1.exs")
-        :ok = GenServer.call(pid, {:put, :jwk, JOSE.JWK.from(jwk)})
-
-        result = OpenIDConnect.verify(:google, "fail")
-        assert result == {:error, :verify, "invalid token format"}
-      after
-        GenServer.stop(pid)
-      end
-    end
-
-    test "fails with invalid token claims format" do
-      {:ok, pid} = GenServer.start_link(MockWorker, [], name: :openid_connect)
-
-      try do
-        {jwk, []} = Code.eval_file("test/fixtures/rsa/jwk1.exs")
-        :ok = GenServer.call(pid, {:put, :jwk, JOSE.JWK.from(jwk)})
-
-        token =
-          [
-            "fail",
-            "fail",
-            "fail"
-          ]
-          |> Enum.map(fn header -> Base.encode64(header) end)
-          |> Enum.join(".")
-
-        result = OpenIDConnect.verify(:google, token)
-        assert result == {:error, :verify, "token claims did not contain a JSON payload"}
-      after
-        GenServer.stop(pid)
-      end
-    end
-
-    test "fails with token not including algorithm hint" do
-      {:ok, pid} = GenServer.start_link(MockWorker, [], name: :openid_connect)
-
-      try do
-        {jwk, []} = Code.eval_file("test/fixtures/rsa/jwk1.exs")
-        :ok = GenServer.call(pid, {:put, :jwk, JOSE.JWK.from(jwk)})
-
-        token =
-          [
-            "{}",
-            "{}",
-            "{}"
-          ]
-          |> Enum.map(fn header -> Base.encode64(header) end)
-          |> Enum.join(".")
-
-        result = OpenIDConnect.verify(:google, token)
-        assert result == {:error, :verify, "no `alg` found in token"}
-      after
-        GenServer.stop(pid)
-      end
-    end
-
-    test "fails when verification fails" do
-      {:ok, pid} = GenServer.start_link(MockWorker, [], name: :openid_connect)
-
-      try do
-        {jwk1, []} = Code.eval_file("test/fixtures/rsa/jwk1.exs")
-        {jwk2, []} = Code.eval_file("test/fixtures/rsa/jwk2.exs")
-        :ok = GenServer.call(pid, {:put, :jwk, JOSE.JWK.from(jwk1)})
-
-        claims = %{"email" => "brian@example.com"}
-
-        {_alg, token} =
-          jwk2
-          |> JOSE.JWK.from()
-          |> JOSE.JWS.sign(Jason.encode!(claims), %{"alg" => "RS256"})
-          |> JOSE.JWS.compact()
-
-        result = OpenIDConnect.verify(:google, token)
-        assert result == {:error, :verify, "verification failed"}
-      after
-        GenServer.stop(pid)
-      end
-    end
-
-    test "fails when verification fails due to token manipulation" do
-      {:ok, pid} = GenServer.start_link(MockWorker, [], name: :openid_connect)
-
-      try do
-        {jwk, []} = Code.eval_file("test/fixtures/rsa/jwk1.exs")
-        :ok = GenServer.call(pid, {:put, :jwk, JOSE.JWK.from(jwk)})
-
-        claims = %{"email" => "brian@example.com"}
-
-        {_alg, token} =
-          jwk
-          |> JOSE.JWK.from()
-          |> JOSE.JWS.sign(Jason.encode!(claims), %{"alg" => "RS256"})
-          |> JOSE.JWS.compact()
-
-        result = OpenIDConnect.verify(:google, token <> " :)")
-        assert result == {:error, :verify, "verification error"}
-      after
-        GenServer.stop(pid)
-      end
-    end
-  end
-
-  defp set_jose_json_lib(_) do
-    JOSE.json_module(JasonEncoder)
-    []
   end
 end
