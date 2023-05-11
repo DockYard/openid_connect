@@ -50,7 +50,6 @@ defmodule OpenIDConnect do
           required(:discovery_document_uri) => discovery_document_uri(),
           required(:client_id) => client_id(),
           required(:client_secret) => client_secret(),
-          optional(:redirect_uri) => redirect_uri(),
           required(:response_type) => response_type(),
           required(:scope) => scope(),
           optional(:leeway) => non_neg_integer()
@@ -74,8 +73,10 @@ defmodule OpenIDConnect do
   > It is *highly suggested* that you add the `state` param for security reasons. Your
   > OpenID Connect provider should have more information on this topic.
   """
-  @spec authorization_uri(config(), params :: %{optional(atom) => term()}) ::
-          {:ok, uri :: String.t()} | {:error, term()}
+  @spec authorization_uri(
+          config(),
+          redirect_uri :: redirect_uri(),
+          params :: %{optional(atom) => term()}
   def authorization_uri(config, redirect_uri, params \\ %{}) do
     discovery_document_uri = config.discovery_document_uri
 
