@@ -50,7 +50,7 @@ defmodule OpenIDConnect do
           required(:discovery_document_uri) => discovery_document_uri(),
           required(:client_id) => client_id(),
           required(:client_secret) => client_secret(),
-          required(:redirect_uri) => redirect_uri(),
+          optional(:redirect_uri) => redirect_uri(),
           required(:response_type) => response_type(),
           required(:scope) => scope(),
           optional(:leeway) => non_neg_integer()
@@ -76,7 +76,7 @@ defmodule OpenIDConnect do
   """
   @spec authorization_uri(config(), params :: %{optional(atom) => term()}) ::
           {:ok, uri :: String.t()} | {:error, term()}
-  def authorization_uri(config, params \\ %{}) do
+  def authorization_uri(config, redirect_uri, params \\ %{}) do
     discovery_document_uri = config.discovery_document_uri
 
     with {:ok, document} <- Document.fetch_document(discovery_document_uri),
@@ -86,7 +86,7 @@ defmodule OpenIDConnect do
         Map.merge(
           %{
             client_id: config.client_id,
-            redirect_uri: config.redirect_uri,
+            redirect_uri: redirect_uri,
             response_type: response_type,
             scope: scope
           },
@@ -165,11 +165,16 @@ defmodule OpenIDConnect do
   end
 
   @doc """
-  Fetches the authentication tokens from the provider
+  Fetches the authentication tokens from the provider using the token endpoint retrieved from a discovery document.
 
-  The `params` option should at least include the key/value pairs of the `response_type` that
-  was requested during authorization. `params` may also include any one-off overrides for token
-  fetching.
+  The `params` option depends on the `grant_type`:
+
+    * for "authorization_code" grant type, `params` should at least include the `redirect_uri` and `code` params;
+    * for "refresh_token" grant type, `params` should at least include the `refresh_token` param;
+    * for other grant types and more details see the
+    [OpenID Connect spec](https://openid.net/specs/openid-connect-core-1_0.html#TokenEndpoint).
+
+  `params` may also include any one-off overrides for token fetching.
   """
   @spec fetch_tokens(config(), params :: %{optional(atom) => term()}) ::
           {:ok, response :: map()} | {:error, term()}
@@ -177,15 +182,8 @@ defmodule OpenIDConnect do
     discovery_document_uri = config.discovery_document_uri
 
     form_body =
-      Map.merge(
-        %{
-          client_id: config.client_id,
-          client_secret: config.client_secret,
-          redirect_uri: config.redirect_uri,
-          grant_type: "authorization_code"
-        },
-        params
-      )
+      %{client_id: config.client_id, client_secret: config.client_secret}
+      |> Map.merge(params)
       |> URI.encode_query(:www_form)
 
     headers = [{"Content-Type", "application/x-www-form-urlencoded"}]
