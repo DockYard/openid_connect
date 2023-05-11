@@ -77,6 +77,7 @@ defmodule OpenIDConnect do
           config(),
           redirect_uri :: redirect_uri(),
           params :: %{optional(atom) => term()}
+        ) :: {:ok, uri :: String.t()} | {:error, term()}
   def authorization_uri(config, redirect_uri, params \\ %{}) do
     discovery_document_uri = config.discovery_document_uri
 
