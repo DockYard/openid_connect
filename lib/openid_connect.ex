@@ -165,6 +165,38 @@ defmodule OpenIDConnect do
   end
 
   @doc """
+  Builds the registration URI according to the spec in the providers discovery document.
+
+  The `params` option can be used to add additional query params to the URI
+
+  Example:
+    OpenIDConnect.registration_uri(:azure, %{"client_id" => "5d4c39b4-660f-41c9-9a99-2a6a9c263f07"})
+
+  See more about this feature of the OpenID Connect spec:
+    https://openid.net/specs/openid-connect-rpinitiated-1_0.html
+
+  Each provider will typically require one or more of the supported query params, e.g. `id_token_hint` or
+  `client_id`. Read your provider's OIDC documentation to determine which one(s) you should add.
+
+  Some providers don't specify `registration_uri` in their discovery documents,
+  in such cases `{:error, :endpoint_not_set}` is returned.
+  """
+  @spec registration_uri(config(), params :: %{optional(atom) => term()}) ::
+          {:ok, uri :: String.t()} | {:error, term()}
+  def registration_uri(config, params \\ %{}) do
+    discovery_document_uri = config.discovery_document_uri
+
+    with {:ok, document} <- Document.fetch_document(discovery_document_uri) do
+      if registration_endpoint = document.registration_endpoint do
+        params = Map.merge(%{client_id: config.client_id}, params)
+        {:ok, build_uri(registration_endpoint, params)}
+      else
+        {:error, :endpoint_not_set}
+      end
+    end
+  end
+
+  @doc """
   Fetches the authentication tokens from the provider
 
   The `params` option should at least include the key/value pairs of the `response_type` that

@@ -130,7 +130,7 @@ defmodule OpenIDConnectTest do
       assert end_session_uri(config) == {:error, :endpoint_not_set}
     end
 
-    test "generates authorization url" do
+    test "generates end session url" do
       {_bypass, uri} = start_fixture("okta")
       config = %{@config | discovery_document_uri: uri}
 
@@ -162,6 +162,50 @@ defmodule OpenIDConnectTest do
       config = %{@config | discovery_document_uri: uri}
 
       assert end_session_uri(config, %{client_id: "foo"}) ==
+               {:error, %Mint.TransportError{reason: :econnrefused}}
+    end
+  end
+
+  describe "registration_uri/2" do
+    test "returns error when provider doesn't specify registration_endpoint" do
+      {_bypass, uri} = start_fixture("google")
+      config = %{@config | discovery_document_uri: uri}
+
+      assert registration_uri(config) == {:error, :endpoint_not_set}
+    end
+
+    test "generates registration url" do
+      {_bypass, uri} = start_fixture("okta")
+      config = %{@config | discovery_document_uri: uri}
+
+      assert registration_uri(config) ==
+               {:ok, "https://common.okta.com/oauth2/v1/clients?client_id=CLIENT_ID"}
+    end
+
+    test "adds optional params" do
+      {_bypass, uri} = start_fixture("okta")
+      config = %{@config | discovery_document_uri: uri}
+
+      assert registration_uri(config, %{"state" => "foo"}) ==
+               {:ok, "https://common.okta.com/oauth2/v1/clients?client_id=CLIENT_ID&state=foo"}
+    end
+
+    test "params can override default values" do
+      {_bypass, uri} = start_fixture("okta")
+      config = %{@config | discovery_document_uri: uri}
+
+      assert registration_uri(config, %{client_id: "foo"}) ==
+               {:ok, "https://common.okta.com/oauth2/v1/clients?client_id=foo"}
+    end
+
+    test "returns error when document is not available" do
+      bypass = Bypass.open()
+      uri = "http://localhost:#{bypass.port}/.well-known/discovery-document.json"
+      Bypass.down(bypass)
+
+      config = %{@config | discovery_document_uri: uri}
+
+      assert registration_uri(config, %{client_id: "foo"}) ==
                {:error, %Mint.TransportError{reason: :econnrefused}}
     end
   end

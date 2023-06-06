@@ -34,6 +34,7 @@ defmodule OpenIDConnect.DocumentTest do
                  "sub"
                ],
                end_session_endpoint: nil,
+               registration_endpoint: "https://common.auth0.com/oidc/register",
                expires_at: expires_at,
                jwks: %JOSE.JWK{},
                raw: _json,
