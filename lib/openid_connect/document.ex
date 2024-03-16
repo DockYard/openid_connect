@@ -20,6 +20,8 @@ defmodule OpenIDConnect.Document do
                           60 * 60
                         )
 
+  @max_document_size 1024*1024*1024
+
   def fetch_document(uri) do
     with :error <- Cache.fetch(uri),
          {:ok, document_json, document_expires_at} <- fetch_remote_resource(uri),
@@ -62,6 +64,7 @@ defmodule OpenIDConnect.Document do
           }}
          when status in 200..299 <-
            Finch.request(request, OpenIDConnect.Finch),
+           true <- byte_size(response) < @max_document_size,
          {:ok, json} <- Jason.decode(response) do
       expires_at =
         if remaining_lifetime = remaining_lifetime(headers) do
@@ -71,6 +74,7 @@ defmodule OpenIDConnect.Document do
       {:ok, json, expires_at}
     else
       {:ok, %Finch.Response{body: response, status: status}} -> {:error, {status, response}}
+      false -> {:error, :discovery_document_is_too_large}
       other -> other
     end
   end
