@@ -118,8 +118,9 @@ defmodule OpenIDConnect.DocumentTest do
     test "ignored documents larger than 1MB" do
       bypass = Bypass.open()
 
+      large_document = String.duplicate("A", 1024 * 1024 * 1024 + 1024 * 1024 * 5)
+
       Bypass.expect_once(bypass, "GET", "/.well-known/discovery-document.json", fn conn ->
-        large_document = String.duplicate("A", 1024 * 1024 * 1024 + 1024 * 1024)
         Plug.Conn.resp(conn, 200, "{\"a\":\"#{large_document}\"}")
       end)
 
