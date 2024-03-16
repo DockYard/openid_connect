@@ -3,25 +3,26 @@ defmodule OpenIDConnectTest do
   import OpenIDConnect.Fixtures
   import OpenIDConnect
 
+  @redirect_uri "https://localhost/redirect_uri"
+
   @config %{
     discovery_document_uri: nil,
     client_id: "CLIENT_ID",
     client_secret: "CLIENT_SECRET",
-    redirect_uri: "https://localhost/redirect_uri",
     response_type: "code id_token token",
     scope: "openid email profile"
   }
 
-  describe "authorization_uri/2" do
+  describe "authorization_uri/3" do
     test "generates authorization url with scope and response_type as binaries" do
       {_bypass, uri} = start_fixture("google")
       config = %{@config | discovery_document_uri: uri}
 
-      assert authorization_uri(config) ==
+      assert authorization_uri(config, @redirect_uri) ==
                {:ok,
                 "https://accounts.google.com/o/oauth2/v2/auth?" <>
                   "client_id=CLIENT_ID" <>
-                  "&redirect_uri=https%3A%2F%2Flocalhost%2Fredirect_uri" <>
+                  "&redirect_uri=#{URI.encode_www_form(@redirect_uri)}" <>
                   "&response_type=code+id_token+token" <>
                   "&scope=openid+email+profile"}
     end
@@ -30,11 +31,11 @@ defmodule OpenIDConnectTest do
       {_bypass, uri} = start_fixture("google")
       config = %{@config | discovery_document_uri: uri, scope: ["openid", "email", "profile"]}
 
-      assert authorization_uri(config) ==
+      assert authorization_uri(config, @redirect_uri) ==
                {:ok,
                 "https://accounts.google.com/o/oauth2/v2/auth?" <>
                   "client_id=CLIENT_ID" <>
-                  "&redirect_uri=https%3A%2F%2Flocalhost%2Fredirect_uri" <>
+                  "&redirect_uri=#{URI.encode_www_form(@redirect_uri)}" <>
                   "&response_type=code+id_token+token" <>
                   "&scope=openid+email+profile"}
     end
@@ -48,11 +49,11 @@ defmodule OpenIDConnectTest do
           response_type: ["code", "id_token", "token"]
       }
 
-      assert authorization_uri(config) ==
+      assert authorization_uri(config, @redirect_uri) ==
                {:ok,
                 "https://accounts.google.com/o/oauth2/v2/auth?" <>
                   "client_id=CLIENT_ID" <>
-                  "&redirect_uri=https%3A%2F%2Flocalhost%2Fredirect_uri" <>
+                  "&redirect_uri=#{URI.encode_www_form(@redirect_uri)}" <>
                   "&response_type=code+id_token+token" <>
                   "&scope=openid+email+profile"}
     end
@@ -61,37 +62,37 @@ defmodule OpenIDConnectTest do
       {_bypass, uri} = start_fixture("google")
 
       config = %{@config | discovery_document_uri: uri, scope: nil}
-      assert authorization_uri(config) == {:error, :invalid_scope}
+      assert authorization_uri(config, @redirect_uri) == {:error, :invalid_scope}
 
       config = %{@config | discovery_document_uri: uri, scope: ""}
-      assert authorization_uri(config) == {:error, :invalid_scope}
+      assert authorization_uri(config, @redirect_uri) == {:error, :invalid_scope}
 
       config = %{@config | discovery_document_uri: uri, scope: []}
-      assert authorization_uri(config) == {:error, :invalid_scope}
+      assert authorization_uri(config, @redirect_uri) == {:error, :invalid_scope}
     end
 
     test "returns error on empty response_type" do
       {_bypass, uri} = start_fixture("google")
 
       config = %{@config | discovery_document_uri: uri, response_type: nil}
-      assert authorization_uri(config) == {:error, :invalid_response_type}
+      assert authorization_uri(config, @redirect_uri) == {:error, :invalid_response_type}
 
       config = %{@config | discovery_document_uri: uri, response_type: ""}
-      assert authorization_uri(config) == {:error, :invalid_response_type}
+      assert authorization_uri(config, @redirect_uri) == {:error, :invalid_response_type}
 
       config = %{@config | discovery_document_uri: uri, response_type: []}
-      assert authorization_uri(config) == {:error, :invalid_response_type}
+      assert authorization_uri(config, @redirect_uri) == {:error, :invalid_response_type}
     end
 
     test "adds optional params" do
       {_bypass, uri} = start_fixture("google")
       config = %{@config | discovery_document_uri: uri}
 
-      assert authorization_uri(config, %{"state" => "foo"}) ==
+      assert authorization_uri(config, @redirect_uri, %{"state" => "foo"}) ==
                {:ok,
                 "https://accounts.google.com/o/oauth2/v2/auth?" <>
                   "client_id=CLIENT_ID" <>
-                  "&redirect_uri=https%3A%2F%2Flocalhost%2Fredirect_uri" <>
+                  "&redirect_uri=#{URI.encode_www_form(@redirect_uri)}" <>
                   "&response_type=code+id_token+token" <>
                   "&scope=openid+email+profile" <>
                   "&state=foo"}
@@ -101,11 +102,11 @@ defmodule OpenIDConnectTest do
       {_bypass, uri} = start_fixture("google")
       config = %{@config | discovery_document_uri: uri}
 
-      assert authorization_uri(config, %{client_id: "foo"}) ==
+      assert authorization_uri(config, @redirect_uri, %{client_id: "foo"}) ==
                {:ok,
                 "https://accounts.google.com/o/oauth2/v2/auth?" <>
                   "client_id=foo" <>
-                  "&redirect_uri=https%3A%2F%2Flocalhost%2Fredirect_uri" <>
+                  "&redirect_uri=#{URI.encode_www_form(@redirect_uri)}" <>
                   "&response_type=code+id_token+token" <>
                   "&scope=openid+email+profile"}
     end
@@ -117,7 +118,7 @@ defmodule OpenIDConnectTest do
 
       config = %{@config | discovery_document_uri: uri}
 
-      assert authorization_uri(config, %{client_id: "foo"}) ==
+      assert authorization_uri(config, @redirect_uri, %{client_id: "foo"}) ==
                {:error, %Mint.TransportError{reason: :econnrefused}}
     end
   end
@@ -187,8 +188,14 @@ defmodule OpenIDConnectTest do
       {_bypass, uri} = start_fixture("google", %{token_endpoint: token_endpoint})
       config = %{@config | discovery_document_uri: uri}
 
-      assert fetch_tokens(config, %{code: "1234", id_token: "abcd"}) ==
-               {:ok, token_response_attrs}
+      params = %{
+        grant_type: "authorization_code",
+        redirect_uri: @redirect_uri,
+        code: "1234",
+        id_token: "abcd"
+      }
+
+      assert fetch_tokens(config, params) == {:ok, token_response_attrs}
 
       assert_receive {:req, body}
 
@@ -198,7 +205,7 @@ defmodule OpenIDConnectTest do
                  "&code=1234" <>
                  "&grant_type=authorization_code" <>
                  "&id_token=abcd" <>
-                 "&redirect_uri=https%3A%2F%2Flocalhost%2Fredirect_uri"
+                 "&redirect_uri=#{URI.encode_www_form(@redirect_uri)}"
     end
 
     test "allows to override the default params" do
@@ -221,7 +228,11 @@ defmodule OpenIDConnectTest do
       {_bypass, uri} = start_fixture("google", %{token_endpoint: token_endpoint})
       config = %{@config | discovery_document_uri: uri}
 
-      fetch_tokens(config, %{client_id: "foo"})
+      fetch_tokens(config, %{
+        client_id: "foo",
+        grant_type: "authorization_code",
+        redirect_uri: @redirect_uri
+      })
 
       assert_receive {:req, body}
 
@@ -229,7 +240,38 @@ defmodule OpenIDConnectTest do
                "client_id=foo" <>
                  "&client_secret=CLIENT_SECRET" <>
                  "&grant_type=authorization_code" <>
-                 "&redirect_uri=https%3A%2F%2Flocalhost%2Fredirect_uri"
+                 "&redirect_uri=#{URI.encode_www_form(@redirect_uri)}"
+    end
+
+    test "allows to use refresh_token grant type" do
+      bypass = Bypass.open()
+      test_pid = self()
+
+      token_response_attrs = %{
+        "access_token" => "ACCESS_TOKEN",
+        "id_token" => "ID_TOKEN",
+        "refresh_token" => "REFRESH_TOKEN"
+      }
+
+      Bypass.expect_once(bypass, "POST", "/token", fn conn ->
+        {:ok, body, conn} = Plug.Conn.read_body(conn)
+        send(test_pid, {:req, body})
+        Plug.Conn.resp(conn, 200, Jason.encode!(token_response_attrs))
+      end)
+
+      token_endpoint = "http://localhost:#{bypass.port}/token"
+      {_bypass, uri} = start_fixture("google", %{token_endpoint: token_endpoint})
+      config = %{@config | discovery_document_uri: uri}
+
+      fetch_tokens(config, %{grant_type: "refresh_token", refresh_token: "foo"})
+
+      assert_receive {:req, body}
+
+      assert body ==
+               "client_id=CLIENT_ID" <>
+                 "&client_secret=CLIENT_SECRET" <>
+                 "&grant_type=refresh_token" <>
+                 "&refresh_token=foo"
     end
 
     test "returns error when token endpoint is not available" do
@@ -238,8 +280,9 @@ defmodule OpenIDConnectTest do
       token_endpoint = "http://localhost:#{bypass.port}/token"
       {_bypass, uri} = start_fixture("google", %{token_endpoint: token_endpoint})
       config = %{@config | discovery_document_uri: uri}
+      params = %{grant_type: "authorization_code", redirect_uri: @redirect_uri}
 
-      assert fetch_tokens(config, %{client_id: "foo"}) ==
+      assert fetch_tokens(config, params) ==
                {:error, %Mint.TransportError{reason: :econnrefused}}
     end
 
@@ -254,14 +297,21 @@ defmodule OpenIDConnectTest do
       {_bypass, uri} = start_fixture("google", %{token_endpoint: token_endpoint})
       config = %{@config | discovery_document_uri: uri}
 
-      assert fetch_tokens(config, %{client_id: "foo"}) ==
+      assert fetch_tokens(config, %{}) ==
                {:error, {401, "{\"error\":\"unauthorized\"}"}}
     end
 
     test "returns error when real provider token endpoint is responded with invalid code" do
       {_bypass, uri} = start_fixture("google")
       config = %{@config | discovery_document_uri: uri}
-      assert {:error, {401, resp}} = fetch_tokens(config, %{code: "foo"})
+
+      assert {:error, {401, resp}} =
+               fetch_tokens(config, %{
+                 grant_type: "authorization_code",
+                 redirect_uri: @redirect_uri,
+                 code: "foo"
+               })
+
       resp_json = Jason.decode!(resp)
 
       assert resp_json == %{
@@ -272,7 +322,14 @@ defmodule OpenIDConnectTest do
       for provider <- ["auth0", "okta", "onelogin"] do
         {_bypass, uri} = start_fixture(provider)
         config = %{@config | discovery_document_uri: uri}
-        assert {:error, {status, _resp}} = fetch_tokens(config, %{code: "foo"})
+
+        assert {:error, {status, _resp}} =
+                 fetch_tokens(config, %{
+                   grant_type: "authorization_code",
+                   redirect_uri: @redirect_uri,
+                   code: "foo"
+                 })
+
         assert status in 400..499
       end
     end
@@ -284,7 +341,13 @@ defmodule OpenIDConnectTest do
 
       config = %{@config | discovery_document_uri: uri}
 
-      assert fetch_tokens(config, %{code: "foo"}) ==
+      params = %{
+        grant_type: "authorization_code",
+        redirect_uri: @redirect_uri,
+        code: "foo"
+      }
+
+      assert fetch_tokens(config, params) ==
                {:error, %Mint.TransportError{reason: :econnrefused}}
     end
   end
