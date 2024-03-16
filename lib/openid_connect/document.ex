@@ -20,7 +20,11 @@ defmodule OpenIDConnect.Document do
                           60 * 60
                         )
 
-  @max_document_size 1024 * 1024 * 1024
+  @document_max_byte_size Application.compile_env(
+                            :openid_connect,
+                            :document_max_byte_size,
+                            1024 * 1024 * 1024
+                          )
 
   def fetch_document(uri) do
     with :error <- Cache.fetch(uri),
@@ -56,15 +60,8 @@ defmodule OpenIDConnect.Document do
   defp fetch_remote_resource(uri) do
     request = Finch.build(:get, uri)
 
-    with {:ok,
-          %Finch.Response{
-            headers: headers,
-            body: response,
-            status: status
-          }}
-         when status in 200..299 <-
-           Finch.request(request, OpenIDConnect.Finch),
-         true <- byte_size(response) < @max_document_size,
+    with {:ok, %{headers: headers, body: response, status: status}}
+         when status in 200..299 <- read_finch_response(request),
          {:ok, json} <- Jason.decode(response) do
       expires_at =
         if remaining_lifetime = remaining_lifetime(headers) do
@@ -73,9 +70,41 @@ defmodule OpenIDConnect.Document do
 
       {:ok, json, expires_at}
     else
-      {:ok, %Finch.Response{body: response, status: status}} -> {:error, {status, response}}
-      false -> {:error, :discovery_document_is_too_large}
-      other -> other
+      {:ok, %Finch.Response{body: response, status: status}} ->
+        {:error, {status, :erlang.list_to_binary(response)}}
+
+      other ->
+        other
+    end
+  end
+
+  defp read_finch_response(request) do
+    request
+    |> Finch.stream_while(OpenIDConnect.Finch, {%Finch.Response{body: ""}, 0}, fn
+      {:status, status}, {response, byte_size} ->
+        {:cont, {%{response | status: status}, byte_size}}
+
+      {:headers, headers}, {response, byte_size} ->
+        {:cont, {%{response | headers: headers}, byte_size}}
+
+      {:data, _data}, {_response, byte_size} when byte_size >= @document_max_byte_size ->
+        {:halt, {:error, :discovery_document_is_too_large}}
+
+      {:data, data}, {response, byte_size} ->
+        {:cont, {%{response | body: [response.body | data]}, byte_size + byte_size(data)}}
+
+      {:trailers, _trailers}, {response, byte_size} ->
+        {:cont, {response, byte_size}}
+    end)
+    |> case do
+      {:ok, {:error, :discovery_document_is_too_large}} ->
+        {:error, :discovery_document_is_too_large}
+
+      {:ok, {response, _byte_size}} ->
+        {:ok, response}
+
+      {:error, reason} ->
+        {:error, reason}
     end
   end
 

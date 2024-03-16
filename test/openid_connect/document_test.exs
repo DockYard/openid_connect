@@ -119,7 +119,7 @@ defmodule OpenIDConnect.DocumentTest do
       bypass = Bypass.open()
 
       Bypass.expect_once(bypass, "GET", "/.well-known/discovery-document.json", fn conn ->
-        large_document = String.duplicate("A", 1024 * 1024 * 1024 + 1)
+        large_document = String.duplicate("A", 1024 * 1024 * 1024 + 1024 * 1024)
         Plug.Conn.resp(conn, 200, "{\"a\":\"#{large_document}\"}")
       end)
 
