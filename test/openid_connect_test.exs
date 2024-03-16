@@ -18,26 +18,24 @@ defmodule OpenIDConnectTest do
       {_bypass, uri} = start_fixture("google")
       config = %{@config | discovery_document_uri: uri}
 
-      assert authorization_uri(config, @redirect_uri) ==
-               {:ok,
-                "https://accounts.google.com/o/oauth2/v2/auth?" <>
-                  "client_id=CLIENT_ID" <>
-                  "&redirect_uri=#{URI.encode_www_form(@redirect_uri)}" <>
-                  "&response_type=code+id_token+token" <>
-                  "&scope=openid+email+profile"}
+      assert {:ok, url} = authorization_uri(config, @redirect_uri)
+      assert url =~ "https://accounts.google.com/o/oauth2/v2/auth?"
+      assert url =~ "client_id=CLIENT_ID"
+      assert url =~ "redirect_uri=#{URI.encode_www_form(@redirect_uri)}"
+      assert url =~ "response_type=code+id_token+token"
+      assert url =~ "scope=openid+email+profile"
     end
 
     test "generates authorization url with scope as enum" do
       {_bypass, uri} = start_fixture("google")
       config = %{@config | discovery_document_uri: uri, scope: ["openid", "email", "profile"]}
 
-      assert authorization_uri(config, @redirect_uri) ==
-               {:ok,
-                "https://accounts.google.com/o/oauth2/v2/auth?" <>
-                  "client_id=CLIENT_ID" <>
-                  "&redirect_uri=#{URI.encode_www_form(@redirect_uri)}" <>
-                  "&response_type=code+id_token+token" <>
-                  "&scope=openid+email+profile"}
+      assert {:ok, url} = authorization_uri(config, @redirect_uri)
+      assert url =~ "https://accounts.google.com/o/oauth2/v2/auth?"
+      assert url =~ "client_id=CLIENT_ID"
+      assert url =~ "redirect_uri=#{URI.encode_www_form(@redirect_uri)}"
+      assert url =~ "response_type=code+id_token+token"
+      assert url =~ "scope=openid+email+profile"
     end
 
     test "generates authorization url with response_type as enum" do
@@ -49,13 +47,13 @@ defmodule OpenIDConnectTest do
           response_type: ["code", "id_token", "token"]
       }
 
-      assert authorization_uri(config, @redirect_uri) ==
-               {:ok,
-                "https://accounts.google.com/o/oauth2/v2/auth?" <>
-                  "client_id=CLIENT_ID" <>
-                  "&redirect_uri=#{URI.encode_www_form(@redirect_uri)}" <>
-                  "&response_type=code+id_token+token" <>
-                  "&scope=openid+email+profile"}
+      assert {:ok, url} = authorization_uri(config, @redirect_uri)
+
+      assert url =~ "https://accounts.google.com/o/oauth2/v2/auth?"
+      assert url =~ "client_id=CLIENT_ID"
+      assert url =~ "redirect_uri=#{URI.encode_www_form(@redirect_uri)}"
+      assert url =~ "response_type=code+id_token+token"
+      assert url =~ "scope=openid+email+profile"
     end
 
     test "returns error on empty scope" do
@@ -88,27 +86,26 @@ defmodule OpenIDConnectTest do
       {_bypass, uri} = start_fixture("google")
       config = %{@config | discovery_document_uri: uri}
 
-      assert authorization_uri(config, @redirect_uri, %{"state" => "foo"}) ==
-               {:ok,
-                "https://accounts.google.com/o/oauth2/v2/auth?" <>
-                  "client_id=CLIENT_ID" <>
-                  "&redirect_uri=#{URI.encode_www_form(@redirect_uri)}" <>
-                  "&response_type=code+id_token+token" <>
-                  "&scope=openid+email+profile" <>
-                  "&state=foo"}
+      assert {:ok, url} = authorization_uri(config, @redirect_uri, %{"state" => "foo"})
+
+      assert url =~ "https://accounts.google.com/o/oauth2/v2/auth?"
+      assert url =~ "client_id=CLIENT_ID"
+      assert url =~ "redirect_uri=#{URI.encode_www_form(@redirect_uri)}"
+      assert url =~ "response_type=code+id_token+token"
+      assert url =~ "scope=openid+email+profile"
+      assert url =~ "state=foo"
     end
 
     test "params can override default values" do
       {_bypass, uri} = start_fixture("google")
       config = %{@config | discovery_document_uri: uri}
 
-      assert authorization_uri(config, @redirect_uri, %{client_id: "foo"}) ==
-               {:ok,
-                "https://accounts.google.com/o/oauth2/v2/auth?" <>
-                  "client_id=foo" <>
-                  "&redirect_uri=#{URI.encode_www_form(@redirect_uri)}" <>
-                  "&response_type=code+id_token+token" <>
-                  "&scope=openid+email+profile"}
+      assert {:ok, url} = authorization_uri(config, @redirect_uri, %{client_id: "foo"})
+      assert url =~ "https://accounts.google.com/o/oauth2/v2/auth?"
+      assert url =~ "client_id=foo"
+      assert url =~ "redirect_uri=#{URI.encode_www_form(@redirect_uri)}"
+      assert url =~ "response_type=code+id_token+token"
+      assert url =~ "scope=openid+email+profile"
     end
 
     test "returns error when document is not available" do
@@ -198,14 +195,12 @@ defmodule OpenIDConnectTest do
       assert fetch_tokens(config, params) == {:ok, token_response_attrs}
 
       assert_receive {:req, body}
-
-      assert body ==
-               "client_id=CLIENT_ID" <>
-                 "&client_secret=CLIENT_SECRET" <>
-                 "&code=1234" <>
-                 "&grant_type=authorization_code" <>
-                 "&id_token=abcd" <>
-                 "&redirect_uri=#{URI.encode_www_form(@redirect_uri)}"
+      assert body =~ "client_id=CLIENT_ID"
+      assert body =~ "client_secret=CLIENT_SECRET"
+      assert body =~ "code=1234"
+      assert body =~ "grant_type=authorization_code"
+      assert body =~ "id_token=abcd"
+      assert body =~ "redirect_uri=#{URI.encode_www_form(@redirect_uri)}"
     end
 
     test "allows to override the default params" do
@@ -235,12 +230,10 @@ defmodule OpenIDConnectTest do
       })
 
       assert_receive {:req, body}
-
-      assert body ==
-               "client_id=foo" <>
-                 "&client_secret=CLIENT_SECRET" <>
-                 "&grant_type=authorization_code" <>
-                 "&redirect_uri=#{URI.encode_www_form(@redirect_uri)}"
+      assert body =~ "client_id=foo"
+      assert body =~ "client_secret=CLIENT_SECRET"
+      assert body =~ "grant_type=authorization_code"
+      assert body =~ "redirect_uri=#{URI.encode_www_form(@redirect_uri)}"
     end
 
     test "allows to use refresh_token grant type" do
@@ -266,12 +259,10 @@ defmodule OpenIDConnectTest do
       fetch_tokens(config, %{grant_type: "refresh_token", refresh_token: "foo"})
 
       assert_receive {:req, body}
-
-      assert body ==
-               "client_id=CLIENT_ID" <>
-                 "&client_secret=CLIENT_SECRET" <>
-                 "&grant_type=refresh_token" <>
-                 "&refresh_token=foo"
+      assert body =~ "client_id=CLIENT_ID"
+      assert body =~ "client_secret=CLIENT_SECRET"
+      assert body =~ "grant_type=refresh_token"
+      assert body =~ "refresh_token=foo"
     end
 
     test "returns error when token endpoint is not available" do

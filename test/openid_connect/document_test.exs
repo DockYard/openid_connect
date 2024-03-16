@@ -115,6 +115,19 @@ defmodule OpenIDConnect.DocumentTest do
       assert fetch_document(uri) == {:error, {401, "{}"}}
     end
 
+    test "ignored documents larger than 1MB" do
+      bypass = Bypass.open()
+
+      Bypass.expect_once(bypass, "GET", "/.well-known/discovery-document.json", fn conn ->
+        large_document = String.duplicate("A", 1024*1024*1024 + 1)
+        Plug.Conn.resp(conn, 200, "{\"a\":\"#{large_document}\"}")
+      end)
+
+      uri = "http://localhost:#{bypass.port}/.well-known/discovery-document.json"
+
+      assert fetch_document(uri) == {:error, :discovery_document_is_too_large}
+    end
+
     test "handles invalid responses" do
       bypass = Bypass.open()
 
