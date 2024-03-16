@@ -100,7 +100,7 @@ get("/session/authorization-uri", SessionController, :authorization_uri)
 def authorization_uri(conn, _params) do
   google_config = Application.fetch_env!(:my_app, :google_oidc_config)
   {:ok, uri} = OpenIDConnect.authorization_uri(google_config)
-  
+
   json(conn, %{uri: uri})
 end
 
