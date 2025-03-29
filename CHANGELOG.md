@@ -1,5 +1,19 @@
 # CHANGELOG
 
+## v1.0.0
+
+Complete rewrite of the library by @AndrewDryga including
+
+1. Removing GenServer bottleneck
+2. Removing atom requirement for provider name
+3. Removing application config from the library
+4. Rewritten tests to better cover production code
+5. Use Finch/Mint as the HTTP client instead of HTTPoison
+6. Add `end_session_uri/2` and `fetch_userinfo/2`
+7. Adds OpenID claim validation
+
+Please see the documentation for migrating from prior versions.
+
 ## v0.2.2
 * Allow missing `claims_supported` in discovery document
 * Allow overriding document params
