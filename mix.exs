@@ -55,7 +55,7 @@ defmodule OpenIDConnect.Mixfile do
 
   def package do
     [
-      maintainers: ["Brian Cardarella"],
+      maintainers: ["Brian Cardarella", "Dave Lucia"],
       licenses: ["MIT"],
       links: %{"GitHub" => "https://github.com/DockYard/openid_connect"},
       files: ~w(lib mix.exs README.md LICENSE.md CHANGELOG.md)
