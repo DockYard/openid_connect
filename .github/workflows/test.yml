@@ -14,17 +14,17 @@ jobs:
           python-version: "3.9"
       - uses: erlef/setup-beam@v1
         with:
-          otp-version: "25"
-          elixir-version: "1.14"
+          otp-version: "27"
+          elixir-version: "1.18"
       - uses: actions/cache@v3.0.11
         name: Setup Elixir cache
         with:
           path: |
             deps
             _build
-          key: ${{ runner.os }}-mix-otp-25-${{ hashFiles('**/mix.lock') }}
+          key: ${{ runner.os }}-mix-otp-27-${{ hashFiles('**/mix.lock') }}
           restore-keys: |
-            ${{ runner.os }}-mix-otp-25-
+            ${{ runner.os }}-mix-otp-27-
       - uses: actions/cache@v3.0.11
         name: Setup Python cache
         with:
@@ -66,12 +66,12 @@ jobs:
     strategy:
       matrix:
         include:
-          - elixir-version: "1.12"
-            otp-version: "24"
-          - elixir-version: "1.13"
-            otp-version: "24"
-          - elixir-version: "1.14"
+          - elixir-version: "1.16"
             otp-version: "25"
+          - elixir-version: "1.17"
+            otp-version: "26"
+          - elixir-version: "1.18"
+            otp-version: "27"
     steps:
       - uses: actions/checkout@v3
       - uses: erlef/setup-beam@v1
