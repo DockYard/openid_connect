@@ -2,6 +2,7 @@ defmodule OpenIDConnect do
   @moduledoc """
   Handles a majority of the life-cycle concerns with [OpenID Connect](http://openid.net/connect/)
   """
+  alias ElixirLS.LanguageServer.Providers.SelectionRanges
   alias OpenIDConnect.Document
 
   @typedoc """
@@ -68,10 +69,32 @@ defmodule OpenIDConnect do
   The `params` option can be used to add additional query params to the URI
 
   Example:
+
       OpenIDConnect.authorization_uri(:google, %{"hd" => "dockyard.com"})
 
+  > ### Warning {: .warning}
   > It is *highly suggested* that you add the `state` param for security reasons. Your
-  > OpenID Connect provider should have more information on this topic.
+  > OpenID Connect provider should have more information on this topic. 
+  > See [Google's Documentation](https://developers.google.com/identity/openid-connect/openid-connect#createxsrftoken) as an exampl
+
+  ### Creating a state token
+
+  A state token should be a hashed cookie or a randomly generated value of reasonable length
+
+      state_token = Base.encode64(:crypto.strong_rand_bytes(32), padding: false)
+
+      OpenIDConnect.authorization_uri(:google, %{"hd" => "dockyard.com", "state" => state_token})
+
+      # Store token somewhere, such as your session state
+      conn = Plug.Conn.put_session(conn, :state_token, state_token)
+
+  ### Validating a state token
+
+  Once your application's callback has been fired, validate the token received vs the one
+  you have stored.
+
+      Plug.Crypto.secure_compare(Plug.Conn.get_session(conn, :state_token), params["state"])
+
   """
   @spec authorization_uri(
           config(),
