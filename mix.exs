@@ -49,7 +49,7 @@ defmodule OpenIDConnect.Mixfile do
       main: "readme",
       source_ref: "v#{@version}",
       logo: "openid-logo.png",
-      extras: ["README.md"]
+      extras: ["README.md", "CHANGELOG.md"]
     ]
   end
 
