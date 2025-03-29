@@ -2,15 +2,20 @@
 
 ## v1.0.0
 
-Complete rewrite of the library by @AndrewDryga including
+Complete rewrite of the library by @AndrewDryga
 
-1. Removing GenServer bottleneck
-2. Removing atom requirement for provider name
-3. Removing application config from the library
-4. Rewritten tests to better cover production code
-5. Use Finch/Mint as the HTTP client instead of HTTPoison
-6. Add `end_session_uri/2` and `fetch_userinfo/2`
-7. Adds OpenID claim validation
+### Added
+* Add `end_session_uri/2` and `fetch_userinfo/2`
+* Adds OpenID claim validation
+
+### Removed
+* GenServer bottleneck
+* Atom requirement for provider name
+* Application config from the library
+
+### Changed
+* Rewrote tests to better cover production code
+* Use Finch/Mint as the HTTP client instead of HTTPoison
 
 Please see the documentation for migrating from prior versions.
 
