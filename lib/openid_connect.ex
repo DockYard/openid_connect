@@ -330,6 +330,12 @@ defmodule OpenIDConnect do
   defp audience_matches?(aud, expected_aud) when is_list(aud), do: Enum.member?(aud, expected_aud)
   defp audience_matches?(aud, expected_aud), do: aud === expected_aud
 
+  @doc """
+  Fetch claims about the authenticated end-user
+
+  For more information, see the [OpenID Connect Spec](https://openid.net/specs/openid-connect-core-1_0.html#UserInfo)
+  """
+  @spec fetch_userinfo(config(), jwt()) :: {:ok, response :: map()} | {:error, term()}
   def fetch_userinfo(config, access_token) do
     discovery_document_uri = config.discovery_document_uri
 

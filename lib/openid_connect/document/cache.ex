@@ -1,4 +1,5 @@
 defmodule OpenIDConnect.Document.Cache do
+  @moduledoc false
   use GenServer
   alias OpenIDConnect.Document
 
