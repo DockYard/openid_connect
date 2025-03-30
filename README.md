@@ -93,14 +93,14 @@ Setting your app's session state is outside the scope of this library.
 ```elixir
 # router.ex
 get("/session", SessionController, :create)
-get("/session/authorization-uri", SessionController, :authorization_uri)
+get("/session/:provider/authorization-uri", SessionController, :authorization_uri)
 
 # session_controller.ex
 def authorization_uri(conn, %{"provider" => "google"}) do
   google_config = Application.fetch_env!(:my_app, :google_oidc_config)
 
   state_token = Base.encode64(:crypto.strong_rand_bytes(32), padding: false)
-  redirect_uri = url(Endpoint, ~p"/auth/google/callback")
+  redirect_uri = url(Endpoint, ~p"/session/google/authorization-uri")
   {:ok, uri} = OpenIDConnect.authorization_uri(google_config, redirect_uri, %{state: state})
   
   conn
@@ -128,7 +128,6 @@ def create(conn, params) do
     _ -> send_resp(conn, 401, "")
   end
 end
-
 
 defp valid_state_token?(conn, token) do
   # Pull out the state token from session
