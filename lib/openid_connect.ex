@@ -1,6 +1,75 @@
 defmodule OpenIDConnect do
   @moduledoc """
-  Handles a majority of the life-cycle concerns with [OpenID Connect](http://openid.net/connect/)
+  OpenID Connect client library for Elixir.
+
+  This library provides a complete implementation of the [OpenID Connect](https://openid.net/connect/) 
+  authentication protocol, which is built on top of OAuth 2.0. It handles the complete authentication 
+  flow including:
+
+  * Generating authorization URIs for redirecting users to identity providers
+  * Fetching tokens from the token endpoint
+  * Verifying JWT ID tokens using provider JWKs (JSON Web Keys)
+  * Fetching user information from the userinfo endpoint
+  * Supporting provider logout via end session endpoints
+
+  ## Supported Authentication Flows
+
+  The library supports the standard OpenID Connect authentication flows:
+
+  * Authorization Code Flow (most common for web applications)
+  * Implicit Flow (less secure, used for JavaScript applications)
+  * Hybrid Flow (combines aspects of both)
+
+  ## Supported Identity Providers
+
+  This library works with any OpenID Connect compliant provider, including:
+
+  * Google
+  * Microsoft Azure AD
+  * Auth0
+  * Okta
+  * Amazon Cognito
+  * Keycloak
+  * OneLogin
+  * HashiCorp Vault
+  * And many others
+
+  ## Basic Usage
+
+  ```elixir
+  # Step 1: Configure the provider
+  google_config = %{
+    discovery_document_uri: "https://accounts.google.com/.well-known/openid-configuration",
+    client_id: "YOUR_CLIENT_ID",
+    client_secret: "YOUR_CLIENT_SECRET",
+    response_type: "code",
+    scope: "openid email profile"
+  }
+
+  # Step 2: Generate the authorization URI (redirect the user to this URI)
+  {:ok, uri} = OpenIDConnect.authorization_uri(
+    google_config,
+    "https://example.com/auth/callback",
+    %{state: state_token}
+  )
+
+  # Step 3: Exchange the authorization code for tokens
+  {:ok, tokens} = OpenIDConnect.fetch_tokens(
+    google_config,
+    %{
+      code: auth_code,
+      redirect_uri: "https://example.com/auth/callback"
+    }
+  )
+
+  # Step 4: Verify the ID token
+  {:ok, claims} = OpenIDConnect.verify(google_config, tokens["id_token"])
+
+  # Optional: Fetch additional user information
+  {:ok, userinfo} = OpenIDConnect.fetch_userinfo(google_config, tokens["access_token"])
+  ```
+
+  See the [README](readme.html) for more detailed examples and configuration options.
   """
   alias OpenIDConnect.Document
 
@@ -63,37 +132,107 @@ defmodule OpenIDConnect do
   @type jwt :: String.t()
 
   @doc """
-  Builds the authorization URI according to the spec in the providers discovery document
+  Builds an authorization URI for redirecting users to the identity provider.
 
-  The `params` option can be used to add additional query params to the URI
+  This function creates a URL that starts the OpenID Connect authentication flow
+  by redirecting the user to the provider's authorization endpoint. The endpoint URL
+  is automatically retrieved from the provider's discovery document.
 
-  Example:
+  ## Parameters
 
-      OpenIDConnect.authorization_uri(:google, %{"hd" => "dockyard.com"})
+  * `config` - The provider configuration map
+  * `redirect_uri` - URI to redirect to after authentication (must match one registered with the provider)
+  * `params` - Optional map of additional query parameters to include in the authorization URI
 
-  > ### Warning {: .warning}
-  > It is *highly suggested* that you add the `state` param for security reasons. Your
-  > OpenID Connect provider should have more information on this topic. 
-  > See [Google's Documentation](https://developers.google.com/identity/openid-connect/openid-connect#createxsrftoken) as an exampl
+  ## Common Additional Parameters
 
-  ### Creating a state token
+  * `state` - **Strongly recommended** - Random token to prevent CSRF attacks
+  * `prompt` - Controls the login experience, common values include:
+    * `"none"` - No interactive prompt, fails if user authentication is required
+    * `"login"` - Forces the user to enter their credentials even if already logged in
+    * `"consent"` - Forces the consent screen to be displayed even if previously consented
+    * `"select_account"` - Prompts the user to select an account
+  * `login_hint` - Email address or sub identifier to pre-fill the login form
+  * `max_age` - Maximum elapsed time in seconds since last authentication
+  * `ui_locales` - Preferred languages for the UI, space-separated list of BCP47 tags
+  * `acr_values` - Authentication Context Class Reference values
 
-  A state token should be a hashed cookie or a randomly generated value of reasonable length
+  ## Provider-Specific Parameters
 
-      state_token = Base.encode64(:crypto.strong_rand_bytes(32), padding: false)
+  Some providers support additional custom parameters:
 
-      OpenIDConnect.authorization_uri(:google, %{"hd" => "dockyard.com", "state" => state_token})
+  * Google: `hd` (hosted domain) to restrict to specific Google Workspace domains
+  * Azure AD: `domain_hint` to skip the home realm discovery page
+  * Many others based on the provider
 
-      # Store token somewhere, such as your session state
-      conn = Plug.Conn.put_session(conn, :state_token, state_token)
+  ## Returns
 
-  ### Validating a state token
+  * `{:ok, uri}` - On success, returns the authorization URI string
+  * `{:error, reason}` - On failure, returns an error tuple with details
 
-  Once your application's callback has been fired, validate the token received vs the one
-  you have stored.
+  ## Example: Basic Usage
 
-      Plug.Crypto.secure_compare(Plug.Conn.get_session(conn, :state_token), params["state"])
+  ```elixir
+  {:ok, uri} = OpenIDConnect.authorization_uri(
+    google_config,
+    "https://example.com/auth/callback",
+    %{state: state_token}
+  )
+  ```
 
+  ## Example: With Additional Parameters
+
+  ```elixir
+  {:ok, uri} = OpenIDConnect.authorization_uri(
+    google_config,
+    "https://example.com/auth/callback",
+    %{
+      state: state_token,
+      prompt: "login",
+      login_hint: "user@example.com",
+      hd: "example.com"  # Google-specific parameter
+    }
+  )
+  ```
+
+  ## Security: State Parameter
+
+  The `state` parameter is critical for preventing cross-site request forgery attacks.
+  Always include a state parameter with a secure random value and validate it when
+  the user is redirected back to your application.
+
+  ### Creating a State Token
+
+  ```elixir
+  state_token = Base.encode64(:crypto.strong_rand_bytes(32), padding: false)
+
+  # Store the token in your session
+  conn = Plug.Conn.put_session(conn, :oidc_state_token, state_token)
+
+  # Include it in the authorization URI
+  {:ok, uri} = OpenIDConnect.authorization_uri(
+    google_config,
+    redirect_uri,
+    %{state: state_token}
+  )
+  ```
+
+  ### Validating the State Token
+
+  When the provider redirects back to your application, verify the state parameter:
+
+  ```elixir
+  stored_token = Plug.Conn.get_session(conn, :oidc_state_token)
+  received_token = params["state"]
+
+  if stored_token && Plug.Crypto.secure_compare(stored_token, received_token) do
+    # State token is valid, proceed with token exchange
+  else
+    # Invalid state token, reject the request
+  end
+  ```
+
+  For more details on state tokens, see [Google's Documentation](https://developers.google.com/identity/openid-connect/openid-connect#createxsrftoken).
   """
   @spec authorization_uri(
           config(),
@@ -157,21 +296,75 @@ defmodule OpenIDConnect do
     do: {:ok, response_type}
 
   @doc """
-  Builds the end session URI according to the spec in the providers discovery document
+  Builds a URI for ending the user's session with the identity provider.
 
-  The `params` option can be used to add additional query params to the URI
+  This function creates a URL for OpenID Connect RP-Initiated Logout, allowing
+  your application to sign the user out of the identity provider's session.
+  The endpoint URL is automatically retrieved from the provider's discovery document.
 
-  Example:
-    OpenIDConnect.end_session_uri(:azure, %{"client_id" => "5d4c39b4-660f-41c9-9a99-2a6a9c263f07"})
+  ## Parameters
 
-  See more about this feature of the OpenID Connect spec:
-    https://openid.net/specs/openid-connect-rpinitiated-1_0.html
+  * `config` - The provider configuration map
+  * `params` - Optional map of additional query parameters for the end session URI
 
-  Each provider will typically require one or more of the supported query params, e.g. `id_token_hint` or
-  `client_id`. Read your provider's OIDC documentation to determine which one(s) you should add.
+  ## Common Additional Parameters
 
-  Some providers don't specify `end_session_endpoint` in their discovery documents,
-  in such cases `{:error, :endpoint_not_set}` is returned.
+  * `id_token_hint` - The ID token previously issued to the user (strongly recommended)
+  * `post_logout_redirect_uri` - URI to redirect to after logout (must be registered with provider)
+  * `state` - Opaque value for maintaining state between logout request and callback
+
+  ## Provider Requirements
+
+  Different providers have different requirements for logout:
+
+  * Azure AD: Requires `post_logout_redirect_uri` and may accept `id_token_hint`
+  * Auth0: Requires `client_id` and `returnTo` (instead of `post_logout_redirect_uri`)
+  * Cognito: Requires `client_id` and `logout_uri` (their name for redirect URI)
+  * Okta: Requires `id_token_hint` and accepts `post_logout_redirect_uri`
+  * Keycloak: Accepts `id_token_hint` and `post_logout_redirect_uri`
+
+  Always consult your provider's documentation for specific requirements.
+
+  ## Returns
+
+  * `{:ok, uri}` - On success, returns the end session URI string
+  * `{:error, :endpoint_not_set}` - If the provider doesn't support RP-Initiated Logout
+  * `{:error, reason}` - On other failures, returns an error tuple with details
+
+  ## Provider Support Note
+
+  Not all providers support RP-Initiated Logout. If the provider's discovery document
+  doesn't include an `end_session_endpoint`, this function will return
+  `{:error, :endpoint_not_set}`. In such cases, you'll need to implement session
+  termination in your application only.
+
+  ## Example: Azure AD Logout
+
+  ```elixir
+  {:ok, logout_uri} = OpenIDConnect.end_session_uri(
+    azure_config,
+    %{
+      post_logout_redirect_uri: "https://example.com/logged-out"
+    }
+  )
+
+  # Redirect the user to the logout_uri
+  redirect(conn, external: logout_uri)
+  ```
+
+  ## Example: With ID Token Hint
+
+  ```elixir
+  {:ok, logout_uri} = OpenIDConnect.end_session_uri(
+    okta_config,
+    %{
+      id_token_hint: id_token,
+      post_logout_redirect_uri: "https://example.com/logged-out"
+    }
+  )
+  ```
+
+  For more details, see the [OpenID Connect RP-Initiated Logout Specification](https://openid.net/specs/openid-connect-rpinitiated-1_0.html).
   """
   @spec end_session_uri(config(), params :: %{optional(atom) => term()}) ::
           {:ok, uri :: String.t()} | {:error, term()}
@@ -189,16 +382,69 @@ defmodule OpenIDConnect do
   end
 
   @doc """
-  Fetches the authentication tokens from the provider using the token endpoint retrieved from a discovery document.
+  Fetches authentication tokens from the provider using the token endpoint.
 
-  The `params` option depends on the `grant_type`:
+  This function exchanges the authorization code or refresh token for access and ID tokens
+  from the identity provider's token endpoint. The endpoint URL is automatically retrieved
+  from the provider's discovery document.
 
-    * for "authorization_code" grant type, `params` should at least include the `redirect_uri` and `code` params;
-    * for "refresh_token" grant type, `params` should at least include the `refresh_token` param;
-    * for other grant types and more details see the
-    [OpenID Connect spec](https://openid.net/specs/openid-connect-core-1_0.html#TokenEndpoint).
+  ## Parameters
 
-  `params` may also include any one-off overrides for token fetching.
+  * `config` - The provider configuration map
+  * `params` - A map of parameters to send to the token endpoint
+
+  ## Common Parameters
+
+  The params map should include different fields depending on the grant type:
+
+  ### Authorization Code Grant (most common)
+
+  ```elixir
+  %{
+    code: "AUTHORIZATION_CODE_FROM_CALLBACK",
+    redirect_uri: "https://example.com/callback", # Must match the original redirect_uri
+    grant_type: "authorization_code" # Optional, defaults to "authorization_code"
+  }
+  ```
+
+  ### Refresh Token Grant
+
+  ```elixir
+  %{
+    refresh_token: "REFRESH_TOKEN",
+    grant_type: "refresh_token"
+  }
+  ```
+
+  ## Returns
+
+  * `{:ok, tokens}` - On successful token exchange, returns a map containing at minimum:
+    * `"access_token"` - The OAuth 2.0 access token
+    * `"token_type"` - The token type (typically "Bearer")
+    * `"expires_in"` - Token lifetime in seconds
+    * `"id_token"` - The OpenID Connect ID token (JWT)
+    * `"refresh_token"` - Optional refresh token for obtaining new access tokens
+
+  * `{:error, reason}` - On failure, returns an error tuple with reason
+
+  ## Example
+
+  ```elixir
+  {:ok, tokens} = OpenIDConnect.fetch_tokens(
+    google_config,
+    %{
+      code: params["code"],
+      redirect_uri: "https://example.com/auth/callback" 
+    }
+  )
+
+  # Access the tokens
+  access_token = tokens["access_token"]
+  id_token = tokens["id_token"]
+  refresh_token = tokens["refresh_token"]
+  ```
+
+  For more details, see the [OpenID Connect spec](https://openid.net/specs/openid-connect-core-1_0.html#TokenEndpoint).
   """
   @spec fetch_tokens(config(), params :: %{optional(atom) => term()}) ::
           {:ok, response :: map()} | {:error, term()}
@@ -225,10 +471,50 @@ defmodule OpenIDConnect do
   end
 
   @doc """
-  Verifies the validity of the JSON Web Token (JWT)
+  Verifies the validity and authenticity of an OpenID Connect ID token.
 
-  This verification will assert the token's encryption against the provider's
-  JSON Web Key (JWK)
+  This security-critical function verifies that:
+
+  1. The token's signature is valid and was signed by the provider's key
+  2. The token has not expired (checking the "exp" claim)
+  3. The token is intended for your application (checking the "aud" claim)
+
+  ## Parameters
+
+  * `config` - The provider configuration map
+  * `jwt` - The ID token string (a JSON Web Token) from the tokens response
+
+  ## Returns
+
+  * `{:ok, claims}` - On successful verification, returns the decoded claims from the token
+  * `{:error, reason}` - On verification failure, returns an error tuple with details
+
+  ## Verification Process
+
+  1. The signature is verified using the provider's JSON Web Keys (JWKs), which are fetched
+     from the provider's JWKs endpoint listed in the discovery document.
+  2. The "exp" (expiration) claim is checked to ensure the token has not expired.
+     A configurable leeway (default: 30 seconds) is allowed to account for clock skew.
+  3. The "aud" (audience) claim is verified to ensure the token is intended for your
+     application, as identified by your client_id.
+
+  ## Example
+
+  ```elixir
+  {:ok, claims} = OpenIDConnect.verify(google_config, id_token)
+
+  # Common claims you might find in the response:
+  user_id = claims["sub"]         # Unique user identifier
+  email = claims["email"]         # User's email (if in scope)
+  name = claims["name"]           # User's name (if in scope)
+  picture = claims["picture"]     # URL to user's profile picture (if available)
+  issuer = claims["iss"]          # Identifies the token issuer
+  ```
+
+  ## Security Warning
+
+  Always verify tokens before trusting their contents. Never use token data for
+  authentication purposes without verification, as tokens could be forged or tampered with.
   """
   @spec verify(config(), jwt :: String.t()) ::
           {:ok, claims :: map()} | {:error, term()}
@@ -331,9 +617,52 @@ defmodule OpenIDConnect do
   defp audience_matches?(aud, expected_aud), do: aud === expected_aud
 
   @doc """
-  Fetch claims about the authenticated end-user
+  Fetches information about the authenticated user from the userinfo endpoint.
 
-  For more information, see the [OpenID Connect Spec](https://openid.net/specs/openid-connect-core-1_0.html#UserInfo)
+  This function retrieves additional claims about the end-user from the provider's
+  userinfo endpoint using the access token. This can be useful when you need user
+  attributes that weren't included in the ID token claims.
+
+  ## Parameters
+
+  * `config` - The provider configuration map
+  * `access_token` - The OAuth 2.0 access token obtained from `fetch_tokens/2`
+
+  ## Returns
+
+  * `{:ok, userinfo}` - On success, returns a map of user information
+  * `{:error, reason}` - On failure, returns an error tuple with details
+
+  ## Userinfo Claims
+
+  The returned claims will depend on the scopes requested during authorization,
+  but typically include:
+
+  * `"sub"` - Subject identifier (unique user ID)
+  * `"name"` - User's full name (if "profile" scope)
+  * `"given_name"` - First name (if "profile" scope)
+  * `"family_name"` - Last name (if "profile" scope)
+  * `"email"` - Email address (if "email" scope)
+  * `"email_verified"` - Boolean indicating if email is verified (if "email" scope)
+  * `"picture"` - URL to profile picture (if "profile" scope)
+
+  ## Example
+
+  ```elixir
+  {:ok, userinfo} = OpenIDConnect.fetch_userinfo(google_config, access_token)
+
+  # Access user information
+  user_id = userinfo["sub"]
+  email = userinfo["email"]
+  name = userinfo["name"]
+  ```
+
+  ## Security Note
+
+  The userinfo endpoint requires a valid access token. The token must have
+  appropriate scopes (typically "openid" and others like "profile" or "email").
+
+  For more details, see the [OpenID Connect UserInfo Endpoint](https://openid.net/specs/openid-connect-core-1_0.html#UserInfo).
   """
   @spec fetch_userinfo(config(), jwt()) :: {:ok, response :: map()} | {:error, term()}
   def fetch_userinfo(config, access_token) do
