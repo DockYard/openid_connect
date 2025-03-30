@@ -14,12 +14,18 @@ defmodule OpenIDConnect.Document do
             jwks: nil,
             expires_at: nil
 
+  @type t :: %__MODULE__{}
+
   @refresh_time_seconds Application.compile_env(
                           :openid_connect,
                           :document_max_expiration_seconds,
                           60 * 60
                         )
 
+  @doc """
+  Fetches an OIDC document from cache, falling back to fetching from the remote resource
+  """
+  @spec fetch_document(String.t()) :: {:ok, t()} | {:error, term()}
   def fetch_document(uri) do
     with :error <- Cache.fetch(uri),
          {:ok, document_json, document_expires_at} <- fetch_remote_resource(uri),
