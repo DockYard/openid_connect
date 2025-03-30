@@ -161,6 +161,17 @@ Please do! We are always looking to improve this library. Please see our
 [Contribution Guidelines](https://github.com/dockyard/openid_connect/blob/master/CONTRIBUTING.md)
 on how to properly submit issues and pull requests.
 
+## Sponsors
+
+In addition to our contributors, this library receives support and maintenance from [TV Labs](https://tvlabs.ai)
+
+<p align="center">
+  <a href="https://tvlabs.ai">
+    <img alt="TV Labs Logo" width="200" src="https://tvlabs.ai/images/tvlabs.svg">
+  </a>
+</p>
+
+
 ## Legal
 
 [DockYard](http://dockyard.com/), Inc. &copy; 2018
