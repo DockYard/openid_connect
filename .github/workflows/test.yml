@@ -21,6 +21,9 @@ jobs:
           otp-version: "27" # Define the OTP version
           elixir-version: "1.18" # Define the Elixir version
 
+      - name: Install dependencies
+        run: mix deps.get --only dev
+
       # Cache key based on Erlang/Elixir version and the mix.lock hash
       - name: Restore PLT cache
         id: plt_cache
