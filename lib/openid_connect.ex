@@ -2,7 +2,6 @@ defmodule OpenIDConnect do
   @moduledoc """
   Handles a majority of the life-cycle concerns with [OpenID Connect](http://openid.net/connect/)
   """
-  alias ElixirLS.LanguageServer.Providers.SelectionRanges
   alias OpenIDConnect.Document
 
   @typedoc """
