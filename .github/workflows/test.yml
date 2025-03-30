@@ -8,11 +8,11 @@ on:
 jobs:
   static-analysis:
     name: Dialyzer, Credo, & Warnings
-    runs-on: ubuntu-22.04
+    runs-on: ubuntu-latest
 
     steps:
       - name: Check out source
-        uses: actions/checkout@v2
+        uses: actions/checkout@v3
 
       - name: Set up Elixir
         id: beam
@@ -63,7 +63,7 @@ jobs:
         run: mix dialyzer --format github --format dialyxir
 
   unit-test:
-    runs-on: ubuntu-22.04
+    runs-on: ubuntu-latest
     env:
       MIX_ENV: test
       GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
@@ -77,7 +77,7 @@ jobs:
           - elixir-version: "1.18"
             otp-version: "27"
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v3
       - uses: erlef/setup-beam@v1
         with:
           otp-version: "${{ matrix.otp-version }}"
