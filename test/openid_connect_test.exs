@@ -18,26 +18,30 @@ defmodule OpenIDConnectTest do
       {_bypass, uri} = start_fixture("google")
       config = %{@config | discovery_document_uri: uri}
 
-      assert authorization_uri(config, @redirect_uri) ==
-               {:ok,
-                "https://accounts.google.com/o/oauth2/v2/auth?" <>
-                  "client_id=CLIENT_ID" <>
-                  "&redirect_uri=#{URI.encode_www_form(@redirect_uri)}" <>
-                  "&response_type=code+id_token+token" <>
-                  "&scope=openid+email+profile"}
+      assert {:ok, "https://accounts.google.com/o/oauth2/v2/auth?" <> query} =
+               authorization_uri(config, @redirect_uri)
+
+      assert URI.decode_query(query) == %{
+               "client_id" => "CLIENT_ID",
+               "redirect_uri" => "https://localhost/redirect_uri",
+               "response_type" => "code id_token token",
+               "scope" => "openid email profile"
+             }
     end
 
     test "generates authorization url with scope as enum" do
       {_bypass, uri} = start_fixture("google")
       config = %{@config | discovery_document_uri: uri, scope: ["openid", "email", "profile"]}
 
-      assert authorization_uri(config, @redirect_uri) ==
-               {:ok,
-                "https://accounts.google.com/o/oauth2/v2/auth?" <>
-                  "client_id=CLIENT_ID" <>
-                  "&redirect_uri=#{URI.encode_www_form(@redirect_uri)}" <>
-                  "&response_type=code+id_token+token" <>
-                  "&scope=openid+email+profile"}
+      assert {:ok, "https://accounts.google.com/o/oauth2/v2/auth?" <> query} =
+               authorization_uri(config, @redirect_uri)
+
+      assert URI.decode_query(query) == %{
+               "client_id" => "CLIENT_ID",
+               "redirect_uri" => "https://localhost/redirect_uri",
+               "response_type" => "code id_token token",
+               "scope" => "openid email profile"
+             }
     end
 
     test "generates authorization url with response_type as enum" do
@@ -49,13 +53,15 @@ defmodule OpenIDConnectTest do
           response_type: ["code", "id_token", "token"]
       }
 
-      assert authorization_uri(config, @redirect_uri) ==
-               {:ok,
-                "https://accounts.google.com/o/oauth2/v2/auth?" <>
-                  "client_id=CLIENT_ID" <>
-                  "&redirect_uri=#{URI.encode_www_form(@redirect_uri)}" <>
-                  "&response_type=code+id_token+token" <>
-                  "&scope=openid+email+profile"}
+      assert {:ok, "https://accounts.google.com/o/oauth2/v2/auth?" <> query} =
+               authorization_uri(config, @redirect_uri)
+
+      assert URI.decode_query(query) == %{
+               "client_id" => "CLIENT_ID",
+               "redirect_uri" => "https://localhost/redirect_uri",
+               "response_type" => "code id_token token",
+               "scope" => "openid email profile"
+             }
     end
 
     test "returns error on empty scope" do
@@ -88,27 +94,32 @@ defmodule OpenIDConnectTest do
       {_bypass, uri} = start_fixture("google")
       config = %{@config | discovery_document_uri: uri}
 
-      assert authorization_uri(config, @redirect_uri, %{"state" => "foo"}) ==
-               {:ok,
-                "https://accounts.google.com/o/oauth2/v2/auth?" <>
-                  "client_id=CLIENT_ID" <>
-                  "&redirect_uri=#{URI.encode_www_form(@redirect_uri)}" <>
-                  "&response_type=code+id_token+token" <>
-                  "&scope=openid+email+profile" <>
-                  "&state=foo"}
+      assert {:ok, "https://accounts.google.com/o/oauth2/v2/auth?" <> query} =
+               authorization_uri(config, @redirect_uri, %{"state" => "foo"})
+
+      assert URI.decode_query(query) == %{
+               "client_id" => "CLIENT_ID",
+               "redirect_uri" => "https://localhost/redirect_uri",
+               "response_type" => "code id_token token",
+               "scope" => "openid email profile",
+               "state" => "foo"
+             }
     end
 
     test "params can override default values" do
       {_bypass, uri} = start_fixture("google")
       config = %{@config | discovery_document_uri: uri}
 
-      assert authorization_uri(config, @redirect_uri, %{client_id: "foo"}) ==
-               {:ok,
-                "https://accounts.google.com/o/oauth2/v2/auth?" <>
-                  "client_id=foo" <>
-                  "&redirect_uri=#{URI.encode_www_form(@redirect_uri)}" <>
-                  "&response_type=code+id_token+token" <>
-                  "&scope=openid+email+profile"}
+      assert {:ok, "https://accounts.google.com/o/oauth2/v2/auth?" <> query} =
+               authorization_uri(config, @redirect_uri, %{client_id: "foo"})
+
+      assert URI.decode_query(query) ==
+               %{
+                 "client_id" => "foo",
+                 "redirect_uri" => "https://localhost/redirect_uri",
+                 "response_type" => "code id_token token",
+                 "scope" => "openid email profile"
+               }
     end
 
     test "returns error when document is not available" do
@@ -199,13 +210,14 @@ defmodule OpenIDConnectTest do
 
       assert_receive {:req, body}
 
-      assert body ==
-               "client_id=CLIENT_ID" <>
-                 "&client_secret=CLIENT_SECRET" <>
-                 "&code=1234" <>
-                 "&grant_type=authorization_code" <>
-                 "&id_token=abcd" <>
-                 "&redirect_uri=#{URI.encode_www_form(@redirect_uri)}"
+      assert URI.decode_query(body) == %{
+               "client_id" => "CLIENT_ID",
+               "client_secret" => "CLIENT_SECRET",
+               "code" => "1234",
+               "grant_type" => "authorization_code",
+               "id_token" => "abcd",
+               "redirect_uri" => "https://localhost/redirect_uri"
+             }
     end
 
     test "allows to override the default params" do
@@ -236,11 +248,12 @@ defmodule OpenIDConnectTest do
 
       assert_receive {:req, body}
 
-      assert body ==
-               "client_id=foo" <>
-                 "&client_secret=CLIENT_SECRET" <>
-                 "&grant_type=authorization_code" <>
-                 "&redirect_uri=#{URI.encode_www_form(@redirect_uri)}"
+      assert URI.decode_query(body) == %{
+               "client_id" => "foo",
+               "client_secret" => "CLIENT_SECRET",
+               "grant_type" => "authorization_code",
+               "redirect_uri" => "https://localhost/redirect_uri"
+             }
     end
 
     test "allows to use refresh_token grant type" do

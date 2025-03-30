@@ -1,84 +1,91 @@
 name: Test
-on: [push, pull_request]
+
+on:
+  push:
+    branches: ["main"]
+  pull_request:
 
 jobs:
   static-analysis:
+    name: Dialyzer, Credo, & Warnings
     runs-on: ubuntu-latest
-    env:
-      MIX_ENV: dev
-      GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
     steps:
-      - uses: actions/checkout@v3
-      - uses: actions/setup-python@v2
+      - name: Check out source
+        uses: actions/checkout@v3
+
+      - name: Set up Elixir
+        id: beam
+        uses: erlef/setup-beam@v1
         with:
-          python-version: "3.9"
-      - uses: erlef/setup-beam@v1
-        with:
-          otp-version: "25"
-          elixir-version: "1.14"
-      - uses: actions/cache@v3.0.11
-        name: Setup Elixir cache
-        with:
-          path: |
-            deps
-            _build
-          key: ${{ runner.os }}-mix-otp-25-${{ hashFiles('**/mix.lock') }}
-          restore-keys: |
-            ${{ runner.os }}-mix-otp-25-
-      - uses: actions/cache@v3.0.11
-        name: Setup Python cache
-        with:
-          path: ~/.cache/pip
-          key: ${{ runner.os }}-pip-${{ hashFiles('**/requirements.txt') }}
-          restore-keys: |
-            ${{ runner.os }}-pip-
-      - name: Install Elixir Dependencies
+          otp-version: "27" # Define the OTP version
+          elixir-version: "1.18" # Define the Elixir version
+
+      - name: Install dependencies
         run: mix deps.get --only dev
-      - name: Install Python Dependencies
-        run: |
-          pip install -r requirements.txt
-      # Don't cache PLTs based on mix.lock hash, as Dialyzer can incrementally update even old ones
-      # Cache key based on Elixir & Erlang version (also usefull when running in matrix)
+
+      # Cache key based on Erlang/Elixir version and the mix.lock hash
       - name: Restore PLT cache
-        uses: actions/cache@v3.0.11
         id: plt_cache
+        uses: actions/cache/restore@v4
         with:
           key: |
-            ${{ runner.os }}-${{ steps.beam.outputs.elixir-version }}-${{ steps.beam.outputs.otp-version }}-plt
+            plt-${{ runner.os }}-${{ steps.beam.outputs.otp-version }}-${{ steps.beam.outputs.elixir-version }}-${{ hashFiles('**/mix.lock') }}
           restore-keys: |
-            ${{ runner.os }}-${{ steps.beam.outputs.elixir-version }}-${{ steps.beam.outputs.otp-version }}-plt
+            plt-${{ runner.os }}-${{ steps.beam.outputs.otp-version }}-${{ steps.beam.outputs.elixir-version }}-
           path: |
             priv/plts
+
       # Create PLTs if no cache was found
       - name: Create PLTs
         if: steps.plt_cache.outputs.cache-hit != 'true'
         run: mix dialyzer --plt
-      - name: Run pre-commit
-        run: |
-          pre-commit install
-          SKIP=no-commit-to-branch pre-commit run --all-files
+
+      # By default, the GitHub Cache action will only save the cache if all steps in the job succeed,
+      # so we separate the cache restore and save steps in case running dialyzer fails.
+      - name: Save PLT cache
+        id: plt_cache_save
+        uses: actions/cache/save@v4
+        if: steps.plt_cache.outputs.cache-hit != 'true'
+        with:
+          key: |
+            plt-${{ runner.os }}-${{ steps.beam.outputs.otp-version }}-${{ steps.beam.outputs.elixir-version }}-${{ hashFiles('**/mix.lock') }}
+          path: |
+            priv/plts
+
+      - name: Credo
+        run: mix credo --strict
+
+      - name: Warnings
+        run: mix compile --force --warnings-as-errors
+
+      - name: Run dialyzer
+        # Two formats are included for ease of debugging and it is lightly recommended to use both, see https://github.com/jeremyjh/dialyxir/issues/530 for reasoning
+        # --format github is helpful to print the warnings in a way that GitHub understands and can place on the /files page of a PR
+        # --format dialyxir allows the raw GitHub actions logs to be useful because they have the full warning printed
+        run: mix dialyzer --format github --format dialyxir
 
   unit-test:
-    runs-on: ubuntu-22.04
+    runs-on: ubuntu-latest
     env:
       MIX_ENV: test
       GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
     strategy:
       matrix:
         include:
-          - elixir-version: "1.12"
-            otp-version: "24"
-          - elixir-version: "1.13"
-            otp-version: "24"
-          - elixir-version: "1.14"
+          - elixir-version: "1.16"
             otp-version: "25"
+          - elixir-version: "1.17"
+            otp-version: "26"
+          - elixir-version: "1.18"
+            otp-version: "27"
     steps:
       - uses: actions/checkout@v3
       - uses: erlef/setup-beam@v1
         with:
           otp-version: "${{ matrix.otp-version }}"
           elixir-version: "${{ matrix.elixir-version }}"
-      - uses: actions/cache@v3.0.11
+      - uses: actions/cache@v4
         with:
           path: |
             deps
