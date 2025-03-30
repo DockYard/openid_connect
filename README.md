@@ -32,7 +32,7 @@ google_config = %{
   scope: "openid email profile"
 }
 
-authorization_uri(google_config)
+OpenIDConnect.authorization_uri(google_config)
 ```
 
 Most major OAuth2 providers have added support for OpenIDConnect. [See a short list of most major adopters of OpenIDConnect](https://en.wikipedia.org/wiki/List_of_OAuth_providers).
@@ -96,19 +96,28 @@ get("/session", SessionController, :create)
 get("/session/authorization-uri", SessionController, :authorization_uri)
 
 # session_controller.ex
-# you could also take the `provider` as a query param to pass into the function
-def authorization_uri(conn, _params) do
+def authorization_uri(conn, %{"provider" => "google"}) do
   google_config = Application.fetch_env!(:my_app, :google_oidc_config)
-  {:ok, uri} = OpenIDConnect.authorization_uri(google_config)
+
+  state_token = Base.encode64(:crypto.strong_rand_bytes(32), padding: false)
+  redirect_uri = url(Endpoint, ~p"/auth/google/callback")
+  {:ok, uri} = OpenIDConnect.authorization_uri(google_config, redirect_uri, %{state: state})
   
-  json(conn, %{uri: uri})
+  conn
+  # Store the state token for verifying we get the same one back
+  |> put_session(:state_token, state_token)
+  |> redirect(external: uri)
 end
 
 # The `Authentication` module here is an imaginary interface for setting session state
 def create(conn, params) do
   google_config = Application.fetch_env!(:my_app, :google_oidc_config)
 
-  with {:ok, tokens} <- OpenIDConnect.fetch_tokens(google_config, params["code"]),
+  # State token should be passed back by the provider
+  state_token = params["state"]
+
+  with true <- valid_state_token?(conn, state_token),
+       {:ok, tokens} <- OpenIDConnect.fetch_tokens(google_config, params["code"]),
        {:ok, claims} <- OpenIDConnect.verify(google_config, tokens["id_token"]),
        {:ok, user} <- Authentication.call(google_config, Repo, claims) do
 
@@ -117,6 +126,15 @@ def create(conn, params) do
     |> render(UserView, "show.html", data: user)
   else
     _ -> send_resp(conn, 401, "")
+  end
+end
+
+
+defp valid_state_token?(conn, token) do
+  # Pull out the state token from session
+  case get_session(conn, :state_token) do
+    nil -> false
+    state_token -> Plug.Crypto.secure_compare(state_token, token)
   end
 end
 ```
