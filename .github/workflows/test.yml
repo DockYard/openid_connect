@@ -18,13 +18,13 @@ jobs:
         id: beam
         uses: erlef/setup-beam@v1
         with:
-          otp-version: "24.1" # Define the OTP version
-          elixir-version: "1.12.3" # Define the Elixir version
+          otp-version: "27" # Define the OTP version
+          elixir-version: "1.18" # Define the Elixir version
 
       # Cache key based on Erlang/Elixir version and the mix.lock hash
       - name: Restore PLT cache
         id: plt_cache
-        uses: actions/cache/restore@v3
+        uses: actions/cache/restore@v4
         with:
           key: |
             plt-${{ runner.os }}-${{ steps.beam.outputs.otp-version }}-${{ steps.beam.outputs.elixir-version }}-${{ hashFiles('**/mix.lock') }}
@@ -42,7 +42,7 @@ jobs:
       # so we separate the cache restore and save steps in case running dialyzer fails.
       - name: Save PLT cache
         id: plt_cache_save
-        uses: actions/cache/save@v3
+        uses: actions/cache/save@v4
         if: steps.plt_cache.outputs.cache-hit != 'true'
         with:
           key: |
@@ -77,7 +77,7 @@ jobs:
           - elixir-version: "1.18"
             otp-version: "27"
     steps:
-      - uses: actions/checkout@v3
+      - uses: actions/checkout@v4
       - uses: erlef/setup-beam@v1
         with:
           otp-version: "${{ matrix.otp-version }}"
