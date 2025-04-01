@@ -452,7 +452,11 @@ defmodule OpenIDConnect do
     discovery_document_uri = config.discovery_document_uri
 
     form_body =
-      %{client_id: config.client_id, client_secret: config.client_secret}
+      %{
+        client_id: config.client_id,
+        client_secret: config.client_secret,
+        grant_type: "authorization_code"
+      }
       |> Map.merge(params)
       |> URI.encode_query(:www_form)
 
