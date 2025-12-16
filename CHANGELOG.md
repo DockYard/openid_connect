@@ -1,5 +1,10 @@
 # CHANGELOG
 
+## v1.0.1
+
+## Added
+* Add option `ignore_claims` to `verify/3` for optionally ignoring claim verification
+
 ## v1.0.0
 
 Complete rewrite of the library by @AndrewDryga
