@@ -53,7 +53,7 @@ defmodule OpenIDConnect do
           required(:response_type) => response_type(),
           required(:scope) => scope(),
           optional(:leeway) => non_neg_integer(),
-          optional(:req_options) => keyword()
+          optional(:req_opts) => keyword()
         }
 
   @typedoc """
@@ -81,9 +81,9 @@ defmodule OpenIDConnect do
         ) :: {:ok, uri :: String.t()} | {:error, term()}
   def authorization_uri(config, redirect_uri, params \\ %{}) do
     discovery_document_uri = config.discovery_document_uri
-    req_options = Map.get(config, :req_options, [])
+    req_opts = Map.get(config, :req_opts, [])
 
-    with {:ok, document} <- Document.fetch_document(discovery_document_uri, req_options),
+    with {:ok, document} <- Document.fetch_document(discovery_document_uri, req_opts),
          {:ok, response_type} <- fetch_response_type(config, document),
          {:ok, scope} <- fetch_scope(config) do
       params =
@@ -157,9 +157,9 @@ defmodule OpenIDConnect do
           {:ok, uri :: String.t()} | {:error, term()}
   def end_session_uri(config, params \\ %{}) do
     discovery_document_uri = config.discovery_document_uri
-    req_options = Map.get(config, :req_options, [])
+    req_opts = Map.get(config, :req_opts, [])
 
-    with {:ok, document} <- Document.fetch_document(discovery_document_uri, req_options) do
+    with {:ok, document} <- Document.fetch_document(discovery_document_uri, req_opts) do
       if end_session_endpoint = document.end_session_endpoint do
         params = Map.merge(%{client_id: config.client_id}, params)
         {:ok, build_uri(end_session_endpoint, params)}
@@ -185,17 +185,17 @@ defmodule OpenIDConnect do
           {:ok, response :: map()} | {:error, term()}
   def fetch_tokens(config, params) do
     discovery_document_uri = config.discovery_document_uri
-    req_options = Map.get(config, :req_options, [])
+    req_opts = Map.get(config, :req_opts, [])
 
     form_params =
       %{client_id: config.client_id, client_secret: config.client_secret}
       |> Map.merge(params)
 
-    with {:ok, document} <- Document.fetch_document(discovery_document_uri, req_options),
+    with {:ok, document} <- Document.fetch_document(discovery_document_uri, req_opts),
          {:ok, %{status: status, body: body}} when status in 200..299 <-
            Req.post(
              document.token_endpoint,
-             Keyword.merge([form: form_params, retry: retry_option()], req_options)
+             Keyword.merge([form: form_params, retry: retry_option()], req_opts)
            ) do
       {:ok, decode_body(body)}
     else
@@ -214,12 +214,12 @@ defmodule OpenIDConnect do
           {:ok, claims :: map()} | {:error, term()}
   def verify(config, jwt) do
     discovery_document_uri = config.discovery_document_uri
-    req_options = Map.get(config, :req_options, [])
+    req_opts = Map.get(config, :req_opts, [])
 
     with {:ok, protected} <- peek_protected(jwt),
          {:ok, decoded_protected} <- JSON.decode(protected),
          {:ok, token_alg} <- Map.fetch(decoded_protected, "alg"),
-         {:ok, document} <- Document.fetch_document(discovery_document_uri, req_options),
+         {:ok, document} <- Document.fetch_document(discovery_document_uri, req_opts),
          {true, claims, _jwk} <- verify_signature(document.jwks, token_alg, jwt),
          {:ok, unverified_claims} <- JSON.decode(claims),
          {:ok, verified_claims} <- verify_claims(unverified_claims, config) do
@@ -320,16 +320,16 @@ defmodule OpenIDConnect do
 
   def fetch_userinfo(config, access_token) do
     discovery_document_uri = config.discovery_document_uri
-    req_options = Map.get(config, :req_options, [])
+    req_opts = Map.get(config, :req_opts, [])
 
     headers = [{"Authorization", "Bearer #{access_token}"}]
 
-    with {:ok, document} <- Document.fetch_document(discovery_document_uri, req_options),
+    with {:ok, document} <- Document.fetch_document(discovery_document_uri, req_opts),
          true <- not is_nil(document.userinfo_endpoint),
          {:ok, %{status: status, body: body}} when status in 200..299 <-
            Req.get(
              document.userinfo_endpoint,
-             Keyword.merge([headers: headers, retry: retry_option()], req_options)
+             Keyword.merge([headers: headers, retry: retry_option()], req_opts)
            ) do
       {:ok, decode_body(body)}
     else

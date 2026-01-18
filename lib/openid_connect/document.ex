@@ -26,12 +26,12 @@ defmodule OpenIDConnect.Document do
                             1024 * 1024
                           )
 
-  def fetch_document(uri, req_options \\ []) do
+  def fetch_document(uri, req_opts \\ []) do
     with :error <- Cache.fetch(uri),
-         {:ok, document_json, document_expires_at} <- fetch_remote_resource(uri, req_options),
+         {:ok, document_json, document_expires_at} <- fetch_remote_resource(uri, req_opts),
          {:ok, document} <- build_document(document_json),
          {:ok, jwks_json, jwks_expires_at} <-
-           fetch_remote_resource(document_json["jwks_uri"], req_options),
+           fetch_remote_resource(document_json["jwks_uri"], req_opts),
          {:ok, jwks} <- from_certs(jwks_json) do
       now = DateTime.utc_now()
 
@@ -56,12 +56,12 @@ defmodule OpenIDConnect.Document do
     end
   end
 
-  defp fetch_remote_resource(uri, _req_options) when is_nil(uri),
+  defp fetch_remote_resource(uri, _req_opts) when is_nil(uri),
     do: {:error, :invalid_discovery_document_uri}
 
-  defp fetch_remote_resource(uri, req_options) do
+  defp fetch_remote_resource(uri, req_opts) do
     with {:ok, %{headers: headers, body: response, status: status}}
-         when status in 200..299 <- read_response(uri, req_options),
+         when status in 200..299 <- read_response(uri, req_opts),
          {:ok, json} <- JSON.decode(response) do
       expires_at =
         if remaining_lifetime = remaining_lifetime(headers) do
@@ -78,9 +78,9 @@ defmodule OpenIDConnect.Document do
     end
   end
 
-  defp read_response(uri, req_options) do
+  defp read_response(uri, req_opts) do
     collector = body_collector(@document_max_byte_size)
-    options = Keyword.merge([into: collector, retry: retry_option()], req_options)
+    options = Keyword.merge([into: collector, retry: retry_option()], req_opts)
 
     case Req.get(uri, options) do
       {:ok, %{body: {:error, :body_too_large}}} ->
